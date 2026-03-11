@@ -1,56 +1,133 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Square, MapPin, Clock, Gauge, Navigation } from 'lucide-react';
+import { Play, Square, MapPin, Clock, Gauge, Navigation, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import MapView from '@/components/MapView';
 import { mockRoutes, mockBuses } from '@/lib/mockData';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 export default function DriverTrip() {
   const [isOnTrip, setIsOnTrip] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [speed, setSpeed] = useState(0);
   const [busLocation, setBusLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval>>();
+  const [locationPermission, setLocationPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
+  const [showLocationDialog, setShowLocationDialog] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval>>();
+  const watchIdRef = useRef<number | null>(null);
   const route = mockRoutes[0];
   const bus = mockBuses[0];
 
-  // Simulate bus movement along route
   useEffect(() => {
-    if (!isOnTrip) return;
-
-    let progress = 0;
-    const stops = route.stops;
-
-    intervalRef.current = setInterval(() => {
-      setElapsed(prev => prev + 1);
-      setSpeed(Math.floor(25 + Math.random() * 20));
-
-      progress += 0.008;
-      if (progress >= stops.length - 1) progress = 0;
-
-      const idx = Math.floor(progress);
-      const frac = progress - idx;
-      const from = stops[idx];
-      const to = stops[Math.min(idx + 1, stops.length - 1)];
-
-      setBusLocation({
-        lat: from.lat + (to.lat - from.lat) * frac,
-        lng: from.lng + (to.lng - from.lng) * frac,
+    // Check initial location permission status
+    if ('geolocation' in navigator) {
+      navigator.permissions.query({ name: 'geolocation' as PermissionName }).then(result => {
+        setLocationPermission(result.state as 'granted' | 'denied');
+        result.onchange = () => {
+          setLocationPermission(result.state as 'granted' | 'denied');
+        };
+      }).catch(() => {
+        // Permission API not supported, will check on action
+        setLocationPermission('unknown');
       });
-    }, 1000);
+    }
 
-    return () => clearInterval(intervalRef.current);
-  }, [isOnTrip]);
+    // cleanup on unmount
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (watchIdRef.current != null && 'geolocation' in navigator) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+    };
+  }, []);
+
+  const requestLocationPermission = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (!('geolocation' in navigator)) {
+        resolve(false);
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        () => {
+          setLocationPermission('granted');
+          resolve(true);
+        },
+        () => {
+          setLocationPermission('denied');
+          resolve(false);
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    });
+  };
 
   const startTrip = () => {
-    setIsOnTrip(true);
+    // Show location permission dialog first
+    setShowLocationDialog(true);
+  };
+
+  const confirmStartTrip = async () => {
+    setShowLocationDialog(false);
+    
+    // Request location permission
+    const hasPermission = await requestLocationPermission();
+    
+    if (!hasPermission) {
+      // Show message that location is needed
+      alert('Location permission is required to start the trip. Please enable location access in your browser settings.');
+      return;
+    }
+
     setElapsed(0);
-    setBusLocation({ lat: route.stops[0].lat, lng: route.stops[0].lng });
+    setIsOnTrip(true);
+
+    // Start timer / speed simulation (speed is still simulated)
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setElapsed(prev => prev + 1);
+      setSpeed(Math.floor(25 + Math.random() * 20));
+    }, 1000);
+
+    // One-time current position
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        setBusLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      },
+      () => {
+        // On error (denied, timeout, etc.), fall back to first stop
+        setBusLocation({ lat: route.stops[0].lat, lng: route.stops[0].lng });
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+
+    // Continuous updates while trip is active
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      pos => {
+        setBusLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      },
+      () => {
+        // keep previous busLocation if watch errors; no-op
+      },
+      { enableHighAccuracy: true, maximumAge: 2000 }
+    );
   };
 
   const endTrip = () => {
     setIsOnTrip(false);
-    clearInterval(intervalRef.current);
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (watchIdRef.current != null && 'geolocation' in navigator) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+    setIsOnTrip(true);
     setBusLocation(null);
     setSpeed(0);
   };
@@ -130,6 +207,38 @@ export default function DriverTrip() {
         <h3 className="font-display font-semibold mb-3">Live Map</h3>
         <MapView busLocation={busLocation} stops={route.stops} height="300px" />
       </div>
+
+      {/* Location Permission Dialog */}
+      <Dialog open={showLocationDialog} onOpenChange={setShowLocationDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-warning" />
+              Location Permission Required
+            </DialogTitle>
+            <DialogDescription>
+              To start the trip and share your live location with students, we need access to your device's location.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="flex items-start gap-3 p-3 bg-muted rounded-lg">
+              <MapPin className="w-5 h-5 text-primary mt-0.5" />
+              <div className="text-sm">
+                <p className="font-medium">Why do we need this?</p>
+                <p className="text-muted-foreground">Students need to see your real-time location on the map to track the bus.</p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLocationDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={confirmStartTrip}>
+              Allow Location & Start Trip
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
