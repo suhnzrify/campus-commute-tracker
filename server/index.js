@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import crypto from 'crypto';
 import { db, migrateFromJsonIfEmpty } from './db.js';
 import { verifyPassword, hashPassword } from './auth.js';
 
@@ -85,6 +86,74 @@ app.post('/api/auth/login', (req, res) => {
   } catch (err) {
     console.error('Login error:', err);
     return res.status(500).json({ error: 'Login failed. Please try again.' });
+  }
+});
+
+// Forgot password - send reset link (simulated, stores token in memory)
+const passwordResetTokens = new Map();
+
+app.post('/api/auth/forgot-password', (req, res) => {
+  try {
+    const { email } = req.body || {};
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required.' });
+    }
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const userRow = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(normalizedEmail);
+    
+    // Always return success to prevent email enumeration
+    // In production, you would send an actual email
+    if (userRow) {
+      const token = crypto.randomBytes(32).toString('hex');
+      const expires = Date.now() + 3600000; // 1 hour
+      passwordResetTokens.set(token, { email: normalizedEmail, expires });
+      
+      // In production, send this token via email
+      console.log(`Password reset token for ${normalizedEmail}: ${token}`);
+    }
+    
+    return res.json({ 
+      success: true, 
+      message: 'If an account exists with this email, a password reset link has been sent.' 
+    });
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    return res.status(500).json({ error: 'Failed to process request.' });
+  }
+});
+
+// Reset password with token
+app.post('/api/auth/reset-password', (req, res) => {
+  try {
+    const { token, newPassword } = req.body || {};
+    
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: 'Token and new password are required.' });
+    }
+    
+    const tokenData = passwordResetTokens.get(token);
+    if (!tokenData) {
+      return res.status(400).json({ error: 'Invalid or expired reset token.' });
+    }
+    
+    if (Date.now() > tokenData.expires) {
+      passwordResetTokens.delete(token);
+      return res.status(400).json({ error: 'Reset token has expired.' });
+    }
+    
+    const userRow = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(tokenData.email);
+    if (!userRow) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    
+    const newHash = hashPassword(newPassword);
+    db.prepare('UPDATE users SET passwordHash = ? WHERE id = ?').run(newHash, userRow.id);
+    passwordResetTokens.delete(token);
+    
+    return res.json({ success: true, message: 'Password has been reset successfully.' });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    return res.status(500).json({ error: 'Failed to reset password.' });
   }
 });
 

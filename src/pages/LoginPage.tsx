@@ -5,6 +5,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Bus, Shield, Truck, GraduationCap, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+
+const API_BASE = 'http://localhost:4000';
 
 const roles: { role: UserRole; label: string; icon: React.ElementType; desc: string }[] = [
   { role: 'admin', label: 'Admin', icon: Shield, desc: 'Manage buses, routes & users' },
@@ -17,14 +27,61 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
+  // Forgot password state
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSuccess, setForgotSuccess] = useState(false);
+  const [forgotError, setForgotError] = useState('');
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (login(selectedRole, email, password)) {
+    setError('');
+    setLoading(true);
+    const result = await login(selectedRole, email, password);
+    setLoading(false);
+    if (result.success) {
       navigate(`/${selectedRole}`);
+    } else {
+      setError(result.error || 'Login failed.');
     }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError('');
+    setForgotSuccess(false);
+    setForgotLoading(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setForgotSuccess(true);
+      } else {
+        setForgotError(data.error || 'Failed to process request.');
+      }
+    } catch {
+      setForgotError('Cannot reach server. Is the backend running?');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const closeForgotPassword = () => {
+    setShowForgotPassword(false);
+    setForgotEmail('');
+    setForgotError('');
+    setForgotSuccess(false);
   };
 
   return (
@@ -98,16 +155,78 @@ export default function LoginPage() {
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
-            <Button type="submit" className="w-full h-12 rounded-xl text-base font-semibold">
-              Sign In as {roles.find(r => r.role === selectedRole)?.label}
+            {error && (
+              <p className="text-sm text-destructive text-center">{error}</p>
+            )}
+            <Button
+              type="submit"
+              className="w-full h-12 rounded-xl text-base font-semibold"
+              disabled={loading}
+            >
+              {loading ? 'Signing in…' : `Sign In as ${roles.find(r => r.role === selectedRole)?.label}`}
             </Button>
           </form>
 
+          <div className="mt-4 text-center">
+            <button
+              type="button"
+              onClick={() => setShowForgotPassword(true)}
+              className="text-sm text-primary hover:underline"
+            >
+              Forgot Password?
+            </button>
+          </div>
+
           <p className="text-xs text-center text-muted-foreground mt-4">
-            Demo: Enter any email/password to login
+            Default accounts: admin@gmail.com / 1234, student@gmail.com / 1234, driver@gmail.com / 1234
           </p>
         </div>
       </motion.div>
+
+      {/* Forgot Password Dialog */}
+      <Dialog open={showForgotPassword} onOpenChange={closeForgotPassword}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Enter your email address and we'll send you a link to reset your password.
+            </DialogDescription>
+          </DialogHeader>
+          {forgotSuccess ? (
+            <div className="py-4">
+              <p className="text-sm text-green-600 text-center">
+                If an account exists with this email, a password reset link has been sent.
+                Check the server console for the reset token (in development).
+              </p>
+            </div>
+          ) : (
+            <form onSubmit={handleForgotPassword}>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Input
+                    type="email"
+                    placeholder="Enter your email"
+                    value={forgotEmail}
+                    onChange={e => setForgotEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                {forgotError && (
+                  <p className="text-sm text-destructive">{forgotError}</p>
+                )}
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={closeForgotPassword}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={forgotLoading}>
+                  {forgotLoading ? 'Sending...' : 'Send Reset Link'}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -190,6 +190,53 @@ export function migrateFromJsonIfEmpty() {
       emailVerified: 1,
     });
   }
+
+  // Ensure default student account exists
+  const defaultStudentEmail = 'student@gmail.com';
+  const defaultStudentHash = hashPassword('1234');
+  const existingStudent = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(defaultStudentEmail);
+  if (!existingStudent) {
+    // First create the student entity
+    const studentId = 'st1';
+    db.prepare(
+      'INSERT INTO students (id, name, registerNumber, phone, email, assignedBusId) VALUES (@id, @name, @registerNumber, @phone, @email, @assignedBusId)'
+    ).run({
+      id: studentId,
+      name: 'John Student',
+      registerNumber: 'STU001',
+      phone: '555-0101',
+      email: defaultStudentEmail,
+      assignedBusId: '',
+    });
+    // Then create the user account
+    db.prepare(
+      'INSERT INTO users (id, email, passwordHash, role, entityId, emailVerified) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(studentId, defaultStudentEmail, defaultStudentHash, 'student', studentId, 1);
+  }
+
+  // Ensure default driver account exists
+  const defaultDriverEmail = 'driver@gmail.com';
+  const defaultDriverHash = hashPassword('1234');
+  const existingDriver = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(defaultDriverEmail);
+  if (!existingDriver) {
+    // First create the driver entity
+    const driverId = 'd1';
+    db.prepare(
+      'INSERT INTO drivers (id, name, phone, email, assignedBusId, isOnTrip) VALUES (@id, @name, @phone, @email, @assignedBusId, @isOnTrip)'
+    ).run({
+      id: driverId,
+      name: 'Mike Driver',
+      phone: '555-0202',
+      email: defaultDriverEmail,
+      assignedBusId: '',
+      isOnTrip: 0,
+    });
+    // Then create the user account
+    db.prepare(
+      'INSERT INTO users (id, email, passwordHash, role, entityId, emailVerified) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(driverId, defaultDriverEmail, defaultDriverHash, 'driver', driverId, 1);
+  }
+
   // If old admin@college.edu exists and is different from admin1, remove it to avoid duplicate email
   const oldAdmin = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get('admin@college.edu');
   if (oldAdmin && oldAdmin.id !== (existingAdmin && existingAdmin.id)) {

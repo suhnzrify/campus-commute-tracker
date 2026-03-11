@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 export type UserRole = 'admin' | 'driver' | 'student';
 
-const API_BASE = 'http://localhost:4001';
+const API_BASE = 'http://localhost:4000';
 
 export interface AuthUser {
   id: string;
