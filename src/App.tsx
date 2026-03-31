@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/lib/authContext";
 import NotFound from "./pages/NotFound.tsx";
 import LoginPage from "./pages/LoginPage";
 import AppLayout from "./components/AppLayout";
+import ProfilePage from "./pages/ProfilePage";
 
 // Admin
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -15,6 +16,7 @@ import AdminDrivers from "./pages/admin/AdminDrivers";
 import AdminStudents from "./pages/admin/AdminStudents";
 import AdminRoutes from "./pages/admin/AdminRoutes";
 import AdminMap from "./pages/admin/AdminMap";
+import AdminAlerts from "./pages/admin/AdminAlerts";
 
 // Driver
 import DriverTrip from "./pages/driver/DriverTrip";
@@ -28,19 +30,23 @@ import StudentAlerts from "./pages/student/StudentAlerts";
 
 const queryClient = new QueryClient();
 
-function ProtectedRoute({ children, role }: { children: React.ReactNode; role: string }) {
-  const { user, isAuthenticated } = useAuth();
+function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: string }) {
+  const { user, isAuthenticated, isInitializing } = useAuth();
+  if (isInitializing) return null;
   if (!isAuthenticated) return <Navigate to="/" replace />;
-  if (user?.role !== role) return <Navigate to={`/${user?.role}`} replace />;
+  if (role && (!user || user.role !== role)) return <Navigate to={user ? `/${user.role}` : '/'} replace />;
   return <AppLayout>{children}</AppLayout>;
 }
 
 function AppRoutes() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, isInitializing } = useAuth();
+
+  if (isInitializing) return null;
 
   return (
     <Routes>
-      <Route path="/" element={isAuthenticated ? <Navigate to={`/${user?.role}`} replace /> : <LoginPage />} />
+      <Route path="/" element={<LoginPage />} />
+      <Route path="/dashboard" element={isAuthenticated ? <Navigate to={`/${user?.role}`} replace /> : <Navigate to="/" replace />} />
 
       {/* Admin Routes */}
       <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
@@ -48,6 +54,7 @@ function AppRoutes() {
       <Route path="/admin/drivers" element={<ProtectedRoute role="admin"><AdminDrivers /></ProtectedRoute>} />
       <Route path="/admin/students" element={<ProtectedRoute role="admin"><AdminStudents /></ProtectedRoute>} />
       <Route path="/admin/routes" element={<ProtectedRoute role="admin"><AdminRoutes /></ProtectedRoute>} />
+      <Route path="/admin/alerts" element={<ProtectedRoute role="admin"><AdminAlerts /></ProtectedRoute>} />
       <Route path="/admin/map" element={<ProtectedRoute role="admin"><AdminMap /></ProtectedRoute>} />
 
       {/* Driver Routes */}
@@ -60,6 +67,9 @@ function AppRoutes() {
       <Route path="/student/route" element={<ProtectedRoute role="student"><StudentRoute /></ProtectedRoute>} />
       <Route path="/student/alerts" element={<ProtectedRoute role="student"><StudentAlerts /></ProtectedRoute>} />
 
+      {/* Global Authenticated Pages */}
+      <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
@@ -71,9 +81,12 @@ const App = () => (
       <Toaster />
       <Sonner />
       <AuthProvider>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
+<BrowserRouter future={{
+  v7_startTransition: true,
+  v7_relativeSplatPath: true
+}}>
+  <AppRoutes />
+</BrowserRouter>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>

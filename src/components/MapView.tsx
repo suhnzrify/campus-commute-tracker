@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet-routing-machine';
+import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import { BusStop } from '@/lib/mockData';
 
 // Fix leaflet default marker icons
@@ -44,7 +46,44 @@ function FitBounds({ stops, busLocation }: { stops?: BusStop[]; busLocation?: { 
     if (points.length > 0) {
       map.fitBounds(points, { padding: [40, 40] });
     }
-  }, []);
+  }, [stops, busLocation, map]);
+  return null;
+}
+
+function RoutingMachine({ stops }: { stops: BusStop[] }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map || stops.length < 2) return;
+
+    const waypoints = stops.map(s => L.latLng(s.lat, s.lng));
+
+    const routingControl = L.Routing.control({
+      plan: new L.Routing.Plan(waypoints, {
+        createMarker: () => null as any
+      }),
+      lineOptions: {
+        styles: [{ color: 'hsl(217 91% 50%)', weight: 4, opacity: 0.7 }],
+        extendToWaypoints: true,
+        missingRouteTolerance: 0
+      },
+      addWaypoints: false,
+      fitSelectedRoutes: false,
+      showAlternatives: false,
+      show: false, // hides the textual itinerary
+    }).addTo(map);
+
+    return () => {
+      try {
+        if (map && routingControl) {
+          map.removeControl(routingControl);
+        }
+      } catch (err) {
+        // ignore control removal errors on unmount
+      }
+    };
+  }, [map, stops]);
+
   return null;
 }
 
@@ -53,7 +92,7 @@ export default function MapView({ busLocation, stops = [], height = '400px', sho
     ? [busLocation.lat, busLocation.lng]
     : stops.length > 0
     ? [stops[0].lat, stops[0].lng]
-    : [13.0827, 80.2707];
+    : [9.9312, 76.2673];
 
   const routePoints: [number, number][] = stops.map(s => [s.lat, s.lng]);
 
@@ -66,8 +105,8 @@ export default function MapView({ busLocation, stops = [], height = '400px', sho
         />
         <FitBounds stops={stops} busLocation={busLocation} />
 
-        {showRoute && routePoints.length > 1 && (
-          <Polyline positions={routePoints} pathOptions={{ color: 'hsl(217 91% 50%)', weight: 4, opacity: 0.7 }} />
+        {showRoute && stops.length > 1 && (
+          <RoutingMachine stops={stops} />
         )}
 
         {stops.map(stop => (

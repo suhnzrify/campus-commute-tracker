@@ -1,9 +1,11 @@
 import { ReactNode, useState } from 'react';
 import { useAuth } from '@/lib/authContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Bus, LogOut, Bell, Menu, X, LayoutDashboard, Users, Truck, MapPin, Route, Play, Map, Settings } from 'lucide-react';
+import { Bus, LogOut, Bell, Menu, X, LayoutDashboard, Users, Truck, MapPin, Route, Play, Map, Settings, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { mockNotifications } from '@/lib/mockData';
+import { useNotifications } from '@/hooks/useNotifications';
+import { useStudents } from '@/hooks/useStudents';
+import { useDrivers } from '@/hooks/useDrivers';
 
 interface NavItem {
   label: string;
@@ -18,17 +20,21 @@ const navItems: Record<string, NavItem[]> = {
     { label: 'Drivers', path: '/admin/drivers', icon: Truck },
     { label: 'Students', path: '/admin/students', icon: Users },
     { label: 'Routes', path: '/admin/routes', icon: Route },
+    { label: 'Broadcasts', path: '/admin/alerts', icon: Bell },
     { label: 'Live Map', path: '/admin/map', icon: MapPin },
+    { label: 'Profile', path: '/profile', icon: User },
   ],
   driver: [
     { label: 'Trip', path: '/driver', icon: Play },
     { label: 'Route', path: '/driver/route', icon: Route },
     { label: 'Alerts', path: '/driver/alerts', icon: Bell },
+    { label: 'Profile', path: '/profile', icon: User },
   ],
   student: [
     { label: 'Track', path: '/student', icon: Map },
     { label: 'Route', path: '/student/route', icon: Route },
     { label: 'Alerts', path: '/student/alerts', icon: Bell },
+    { label: 'Profile', path: '/profile', icon: User },
   ],
 };
 
@@ -39,9 +45,23 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
+  const { data: students = [] } = useStudents();
+  const { data: drivers = [] } = useDrivers();
+
+  let targetBusId = 'ALL';
+  if (user?.role === 'student') {
+    const s = students.find(x => x.id === user.entityId);
+    if (s?.assignedBusId) targetBusId = s.assignedBusId;
+  } else if (user?.role === 'driver') {
+    const d = drivers.find(x => x.id === user.entityId);
+    if (d?.assignedBusId) targetBusId = d.assignedBusId;
+  }
+
+  const { data: notifications = [] } = useNotifications(targetBusId);
+  const unreadCount = notifications.length;
+
   if (!user) return null;
   const items = navItems[user.role] || [];
-  const unreadCount = mockNotifications.filter(n => !n.read).length;
 
   const handleLogout = () => {
     logout();
@@ -49,7 +69,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="min-h-screen flex flex-col bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
       {/* Top Nav */}
       <header className="sticky top-0 z-50 bg-nav text-nav-foreground">
         <div className="flex items-center justify-between px-4 h-14">
@@ -142,23 +162,29 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             className="fixed top-14 right-2 z-50 w-80 max-h-96 overflow-auto glass-card rounded-xl p-3 space-y-2"
           >
             <h3 className="font-display font-semibold text-sm mb-2">Notifications</h3>
-            {mockNotifications.map(n => (
-              <div
-                key={n.id}
-                className={`p-3 rounded-lg text-sm ${
-                  !n.read ? 'bg-primary/5 border border-primary/20' : 'bg-muted'
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <span className={`w-2 h-2 rounded-full ${
-                    n.type === 'emergency' ? 'bg-destructive' : n.type === 'warning' ? 'bg-warning' : 'bg-info'
-                  }`} />
-                  <span className="font-semibold">{n.title}</span>
+            {notifications.length > 0 ? (
+              notifications.slice(0, 5).map(n => (
+                <div key={n.id} className="p-2 rounded-lg bg-muted text-xs border border-border">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      n.type === 'emergency' ? 'bg-destructive' : n.type === 'warning' ? 'bg-warning' : 'bg-info'
+                    }`} />
+                    <span className="font-semibold">{n.title}</span>
+                  </div>
+                  <p className="text-muted-foreground">{n.message}</p>
+                  <p className="text-[9px] text-muted-foreground/60 mt-1">{formatTime(new Date(n.timestamp))}</p>
                 </div>
-                <p className="text-muted-foreground text-xs">{n.message}</p>
-                <p className="text-muted-foreground/60 text-[10px] mt-1">{n.from} · {formatTime(n.timestamp)}</p>
+              ))
+            ) : (
+              <div className="p-3 rounded-lg text-sm text-muted-foreground text-center">
+                No notifications
               </div>
-            ))}
+            )}
+            {notifications.length > 5 && (
+              <div className="text-center text-xs text-primary pt-2 font-medium cursor-pointer" onClick={() => navigate(`/${user.role}/alerts`)}>
+                View all
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -177,3 +203,4 @@ function formatTime(date: Date) {
   if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
   return `${Math.floor(diff / 1440)}d ago`;
 }
+

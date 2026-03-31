@@ -77,7 +77,12 @@ export function initSchema() {
       registerNumber TEXT NOT NULL,
       phone TEXT,
       email TEXT,
-      assignedBusId TEXT
+      assignedBusId TEXT,
+      class TEXT,
+      semester TEXT,
+      admissionYear TEXT,
+      pickupStopId TEXT,
+      dropStopId TEXT
     );
   `);
 
@@ -91,6 +96,18 @@ export function initSchema() {
       emailVerified INTEGER NOT NULL DEFAULT 0
     );
   `);
+
+  run(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      type TEXT NOT NULL,
+      from_user TEXT NOT NULL,
+      targetBusId TEXT NOT NULL,
+      timestamp INTEGER NOT NULL
+    );
+  `);
 }
 
 function tableIsEmpty(name) {
@@ -100,6 +117,13 @@ function tableIsEmpty(name) {
 
 export function migrateFromJsonIfEmpty() {
   initSchema();
+
+  // Safe schema migrations for live data
+  try { db.prepare('ALTER TABLE students ADD COLUMN class TEXT').run(); } catch (e) { }
+  try { db.prepare('ALTER TABLE students ADD COLUMN semester TEXT').run(); } catch (e) { }
+  try { db.prepare('ALTER TABLE students ADD COLUMN admissionYear TEXT').run(); } catch (e) { }
+  try { db.prepare('ALTER TABLE students ADD COLUMN pickupStopId TEXT').run(); } catch (e) { }
+  try { db.prepare('ALTER TABLE students ADD COLUMN dropStopId TEXT').run(); } catch (e) { }
 
   // Routes & stops
   if (tableIsEmpty('routes')) {
@@ -162,16 +186,23 @@ export function migrateFromJsonIfEmpty() {
   if (tableIsEmpty('students')) {
     const students = getStudents();
     const insertStudent = db.prepare(
-      'INSERT INTO students (id, name, registerNumber, phone, email, assignedBusId) VALUES (@id, @name, @registerNumber, @phone, @email, @assignedBusId)'
+      'INSERT INTO students (id, name, registerNumber, phone, email, assignedBusId, class, semester, admissionYear, pickupStopId, dropStopId) VALUES (@id, @name, @registerNumber, @phone, @email, @assignedBusId, @class, @semester, @admissionYear, @pickupStopId, @dropStopId)'
     );
     const tx = db.transaction(() => {
-      students.forEach(s => insertStudent.run(s));
+      students.forEach(s => insertStudent.run({
+        ...s,
+        class: s.class || null,
+        semester: s.semester || null,
+        admissionYear: s.admissionYear || null,
+        pickupStopId: s.pickupStopId || null,
+        dropStopId: s.dropStopId || null
+      }));
     });
     tx();
   }
 
-  // Users (login accounts): ensure default admin admin@gmail.com / 1234 always works
-  const defaultAdminEmail = 'admin@gmail.com';
+  // Users (login accounts): ensure default admin adminlbscek@gmail.com / 1234 always works
+  const defaultAdminEmail = 'adminlbscek@gmail.com';
   const defaultAdminHash = hashPassword('1234');
   const existingAdmin = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(defaultAdminEmail);
   if (existingAdmin) {
@@ -199,7 +230,7 @@ export function migrateFromJsonIfEmpty() {
     // First create the student entity
     const studentId = 'st1';
     db.prepare(
-      'INSERT INTO students (id, name, registerNumber, phone, email, assignedBusId) VALUES (@id, @name, @registerNumber, @phone, @email, @assignedBusId)'
+      'INSERT INTO students (id, name, registerNumber, phone, email, assignedBusId, class, semester, admissionYear, pickupStopId, dropStopId) VALUES (@id, @name, @registerNumber, @phone, @email, @assignedBusId, @class, @semester, @admissionYear, @pickupStopId, @dropStopId)'
     ).run({
       id: studentId,
       name: 'John Student',
@@ -207,6 +238,11 @@ export function migrateFromJsonIfEmpty() {
       phone: '555-0101',
       email: defaultStudentEmail,
       assignedBusId: '',
+      class: null,
+      semester: null,
+      admissionYear: null,
+      pickupStopId: null,
+      dropStopId: null
     });
     // Then create the user account
     db.prepare(

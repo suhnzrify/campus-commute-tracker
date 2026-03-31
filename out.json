@@ -1,0 +1,86 @@
+{
+  "routes": [
+    {
+      "id": "r1774825696880",
+      "name": "College - Kasaragode"
+    },
+    {
+      "id": "r1774828587922",
+      "name": "COLLEGE - KANJANAGAD TOWN"
+    }
+  ],
+  "stops": [
+    {
+      "routeId": "r1774825696880",
+      "name": "LBS COLLEGE",
+      "lat": 12.5505,
+      "lng": 75.033
+    },
+    {
+      "routeId": "r1774825696880",
+      "name": "POINACHI",
+      "lat": 12.5255,
+      "lng": 75.0085
+    },
+    {
+      "routeId": "r1774825696880",
+      "name": "PANAYAL",
+      "lat": 12.455,
+      "lng": 74.975
+    },
+    {
+      "routeId": "r1774825696880",
+      "name": "BEKAL",
+      "lat": 12.39,
+      "lng": 74.96
+    },
+    {
+      "routeId": "r1774825696880",
+      "name": "PERIYE",
+      "lat": 12.344,
+      "lng": 75.085
+    },
+    {
+      "routeId": "r1774825696880",
+      "name": "KANHANGAD",
+      "lat": 12.308,
+      "lng": 75.04
+    },
+    {
+      "routeId": "r1774828587922",
+      "name": "COLLEGE",
+      "lat": 12.5505,
+      "lng": 75.033
+    },
+    {
+      "routeId": "r1774828587922",
+      "name": "POINACHI",
+      "lat": 12.5255,
+      "lng": 75.0085
+    },
+    {
+      "routeId": "r1774828587922",
+      "name": "PANAYAL",
+      "lat": 12.455,
+      "lng": 74.975
+    },
+    {
+      "routeId": "r1774828587922",
+      "name": "PERIYE",
+      "lat": 12.344,
+      "lng": 75.085
+    },
+    {
+      "routeId": "r1774828587922",
+      "name": "BEKAL",
+      "lat": 12.39,
+      "lng": 74.96
+    },
+    {
+      "routeId": "r1774828587922",
+      "name": "KANHANGAD TOWN",
+      "lat": 12.308,
+      "lng": 75.04
+    }
+  ]
+}

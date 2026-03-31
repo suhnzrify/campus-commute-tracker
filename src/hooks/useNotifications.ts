@@ -1,0 +1,63 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { API_URL } from '../lib/api';
+
+export interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'info' | 'warning' | 'emergency';
+  from_user: string;
+  targetBusId: string;
+  timestamp: number;
+}
+
+// const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+
+export function useNotifications(busId?: string) {
+  return useQuery({
+    queryKey: ['notifications', busId],
+    queryFn: async (): Promise<Notification[]> => {
+      const url = busId 
+        ? `${API_URL}/notifications?busId=${encodeURIComponent(busId)}` 
+        : `${API_URL}/notifications`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Failed to fetch notifications');
+      return res.json();
+    },
+    refetchInterval: 10000, 
+  });
+}
+
+export function useSendNotification() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: Omit<Notification, 'id' | 'timestamp'>) => {
+      const res = await fetch(`${API_URL}/notifications`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: payload.title,
+          message: payload.message,
+          type: payload.type,
+          from: payload.from_user,
+          targetBusId: payload.targetBusId,
+        }),
+      });
+      if (!res.ok) {
+        let errStr = 'Failed to send notification';
+        try {
+          const errData = await res.json();
+          errStr = errData.error || errStr;
+        } catch {}
+        throw new Error(errStr);
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}

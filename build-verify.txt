@@ -1,0 +1,26 @@
+
+> vite_react_shadcn_ts@0.0.0 build
+> vite build
+
+[36mvite v7.3.1 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32m✓[39m 2179 modules transformed.
+[31m✗[39m Build failed in 3.98s
+[31merror during build:
+[31msrc/pages/admin/AdminMap.tsx (1:9): "mockDrivers" is not exported by "src/lib/mockData.ts", imported by "src/pages/admin/AdminMap.tsx".[31m
+file: [36mC:/Project/campus-commute-tracker/campus-commute-tracker-1/src/pages/admin/AdminMap.tsx:1:9[31m
+[33m
+1: import { mockDrivers, mockRoutes } from '@/lib/mockData';
+            ^
+2: import MapView from '@/components/MapView';
+[31m
+    at getRollupError (file:///C:/Project/campus-commute-tracker/campus-commute-tracker-1/node_modules/rollup/dist/es/shared/parseAst.js:402:41)
+    at error (file:///C:/Project/campus-commute-tracker/campus-commute-tracker-1/node_modules/rollup/dist/es/shared/parseAst.js:398:42)
+    at Module.error (file:///C:/Project/campus-commute-tracker/campus-commute-tracker-1/node_modules/rollup/dist/es/shared/node-entry.js:17040:16)
+    at Module.traceVariable (file:///C:/Project/campus-commute-tracker/campus-commute-tracker-1/node_modules/rollup/dist/es/shared/node-entry.js:17452:29)
+    at ModuleScope.findVariable (file:///C:/Project/campus-commute-tracker/campus-commute-tracker-1/node_modules/rollup/dist/es/shared/node-entry.js:15070:39)
+    at FunctionScope.findVariable (file:///C:/Project/campus-commute-tracker/campus-commute-tracker-1/node_modules/rollup/dist/es/shared/node-entry.js:5673:38)
+    at FunctionBodyScope.findVariable (file:///C:/Project/campus-commute-tracker/campus-commute-tracker-1/node_modules/rollup/dist/es/shared/node-entry.js:5673:38)
+    at MemberExpression.bind (file:///C:/Project/campus-commute-tracker/campus-commute-tracker-1/node_modules/rollup/dist/es/shared/node-entry.js:7392:49)
+    at CallExpression.bind (file:///C:/Project/campus-commute-tracker/campus-commute-tracker-1/node_modules/rollup/dist/es/shared/node-entry.js:2829:23)
+    at CallExpression.bind (file:///C:/Project/campus-commute-tracker/campus-commute-tracker-1/node_modules/rollup/dist/es/shared/node-entry.js:12179:15)[39m
