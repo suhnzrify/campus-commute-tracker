@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 
 export type UserRole = 'admin' | 'driver' | 'student';
 
-const API_BASE = 'http://localhost:4000';
+const API_BASE = 'https://lbs-bus-tracker.onrender.com/api';
 
 export interface AuthUser {
   id: string;

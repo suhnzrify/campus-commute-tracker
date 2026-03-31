@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import MapView from '@/components/MapView';
 import type { Route as RouteType, BusStop } from '@/lib/mockData';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://lbs-bus-tracker.onrender.com';
 
 export default function AdminRoutes() {
   const [routes, setRoutes] = useState<RouteType[]>([]);
@@ -33,7 +33,7 @@ export default function AdminRoutes() {
     const load = async () => {
       try {
         setLoading(true);
-        const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+        const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://lbs-bus-tracker.onrender.com';
         const res = await fetch(`${API_BASE}/api/routes`);
         const data = await res.json();
         setRoutes(data);
