@@ -41,11 +41,11 @@ app.get('/api/health', (_req, res) => {
 // --- FIX: OTP Request Route with Emergency Terminal Logging ---
 app.post('/api/auth/request-otp', async (req, res) => {
   console.log('🔥 [API] OTP REQUEST RECEIVED:', req.body);
-  
+
   try {
     const { email, role } = req.body || {};
     const emailStr = email != null ? String(email).trim().toLowerCase() : '';
-    
+
     if (!emailStr) {
       return res.status(400).json({ error: 'Email is required.' });
     }
@@ -73,7 +73,7 @@ app.post('/api/auth/request-otp', async (req, res) => {
     // 3. SMTP Logic
     const smtpUser = String(process.env.SMTP_USER || '').trim();
     const smtpPass = String(process.env.SMTP_PASS || '').trim();
-    
+
     let transporter;
     if (smtpUser && smtpPass) {
       transporter = nodemailer.createTransport({
@@ -121,13 +121,13 @@ app.post('/api/auth/verify-otp', (req, res) => {
     const { email, code } = req.body || {};
     const emailStr = email != null ? String(email).trim().toLowerCase() : '';
     const codeStr = code != null ? String(code).trim() : '';
-    
+
     const cached = otpCache.get(emailStr);
-    
+
     if (!cached || Date.now() > cached.expiresAt) {
       return res.status(401).json({ error: 'OTP expired or not requested.' });
     }
-    
+
     if (cached.otp !== codeStr && codeStr !== '000000') {
       return res.status(401).json({ error: 'Incorrect OTP.' });
     }
@@ -135,7 +135,7 @@ app.post('/api/auth/verify-otp', (req, res) => {
     otpCache.delete(emailStr);
     const userRow = db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(emailStr);
 
-        let name = 'Admin';
+    let name = 'Admin';
     if (userRow.role === 'driver' && userRow.entityId) {
       const d = db.prepare('SELECT name FROM drivers WHERE id = ?').get(userRow.entityId);
       if (d) name = d.name;
@@ -165,7 +165,7 @@ app.post('/api/auth/reset-admin', (req, res) => {
   const email = 'adminlbscek@gmail.com';
   const userRow = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(email);
   const hash = hashPassword('1234');
-  
+
   if (!userRow) {
     db.prepare('INSERT INTO users (id, email, passwordHash, role, emailVerified) VALUES (?, ?, ?, ?, ?)')
       .run('admin1', email, hash, 'admin', 1);
@@ -218,8 +218,8 @@ app.post('/api/routes/:id/stops', (req, res) => {
       typeof order === 'number'
         ? order
         : (db
-            .prepare('SELECT IFNULL(MAX("order"), 0) as maxOrder FROM stops WHERE routeId = ?')
-            .get(routeId).maxOrder || 0) + 1;
+          .prepare('SELECT IFNULL(MAX("order"), 0) as maxOrder FROM stops WHERE routeId = ?')
+          .get(routeId).maxOrder || 0) + 1;
     db.prepare(
       'INSERT INTO stops (id, routeId, name, lat, lng, waitTime, "order") VALUES (?, ?, ?, ?, ?, ?, ?)'
     ).run(id, routeId, name.trim(), lat, lng, waitTime ?? 0, stopOrder);
