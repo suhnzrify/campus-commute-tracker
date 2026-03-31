@@ -1,10 +1,25 @@
 import { Clock, MapPin } from 'lucide-react';
-import { mockRoutes, mockBuses } from '@/lib/mockData';
 import MapView from '@/components/MapView';
 
+import { useRoutes } from '@/hooks/useRoutes';
+import { useBuses } from '@/hooks/useBuses';
+
 export default function DriverRoute() {
-  const route = mockRoutes[0];
-  const bus = mockBuses[0];
+  const { data: routes = [], isLoading: loadingRoutes } = useRoutes();
+  const { data: buses = [], isLoading: loadingBuses } = useBuses();
+
+  const loading = loadingRoutes || loadingBuses;
+
+  const route = routes[0];
+  const bus = buses[0];
+
+  if (loading) {
+    return <p className="text-sm text-muted-foreground p-4">Loading your route...</p>;
+  }
+
+  if (!route || !bus) {
+    return <p className="text-sm text-destructive p-4">No route data available for your assigned bus.</p>;
+  }
 
   return (
     <div className="space-y-4">

@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { Bell, Send, AlertTriangle, Clock, Navigation } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { mockNotifications } from '@/lib/mockData';
 import { toast } from 'sonner';
+
+import { useSendNotification, useNotifications } from '@/hooks/useNotifications';
+import { useAuth } from '@/lib/authContext';
+import { useDrivers } from '@/hooks/useDrivers';
 
 const quickAlerts = [
   { label: 'Running Late', icon: Clock, type: 'warning' as const },
@@ -13,9 +15,32 @@ const quickAlerts = [
 
 export default function DriverAlerts() {
   const [customMessage, setCustomMessage] = useState('');
+  
+  const { user } = useAuth();
+  const { data: drivers = [] } = useDrivers();
+  // Find current driver to get assigned bus
+  const currentDriver = drivers.find(d => d.id === user?.entityId);
+  const targetBusId = currentDriver?.assignedBusId || 'ALL';
 
-  const sendAlert = (label: string) => {
-    toast.success(`Alert "${label}" sent to all students`);
+  const sendMutation = useSendNotification();
+  const { data: recentNotifications = [] } = useNotifications(targetBusId);
+
+  const sendAlert = (label: string, type: 'info' | 'warning' | 'emergency' = 'info') => {
+    sendMutation.mutate({
+      title: label === customMessage ? 'Driver Message' : label,
+      message: label === customMessage ? customMessage : `Driver reported: ${label}`,
+      type,
+      from_user: user?.name || 'Driver',
+      targetBusId,
+    }, {
+      onSuccess: () => {
+        toast.success(`Alert sent to students`);
+        setCustomMessage('');
+      },
+      onError: (err) => {
+        toast.error(`Failed to send alert: ${err.message}`);
+      }
+    });
   };
 
   return (
@@ -28,10 +53,11 @@ export default function DriverAlerts() {
           {quickAlerts.map(alert => (
             <button
               key={alert.label}
-              onClick={() => sendAlert(alert.label)}
+              disabled={sendMutation.isPending}
+              onClick={() => sendAlert(alert.label, alert.type)}
               className={`flex flex-col items-center gap-2 p-4 rounded-xl transition-all active:scale-95 ${
                 alert.type === 'emergency' ? 'bg-destructive/10 text-destructive hover:bg-destructive/20' : 'bg-warning/10 text-warning hover:bg-warning/20'
-              }`}
+              } disabled:opacity-50`}
             >
               <alert.icon className="w-6 h-6" />
               <span className="text-xs font-medium">{alert.label}</span>
@@ -45,32 +71,36 @@ export default function DriverAlerts() {
         <textarea
           value={customMessage}
           onChange={e => setCustomMessage(e.target.value)}
+          disabled={sendMutation.isPending}
           placeholder="Type a message to send to students..."
-          className="w-full h-24 rounded-xl border border-input bg-background p-3 text-sm resize-none"
+          className="w-full h-24 rounded-xl border border-input bg-background p-3 text-sm resize-none disabled:opacity-50"
         />
         <Button
-          onClick={() => { sendAlert(customMessage); setCustomMessage(''); }}
+          onClick={() => sendAlert(customMessage, 'info')}
           className="w-full mt-2 rounded-xl gap-2"
-          disabled={!customMessage.trim()}
+          disabled={!customMessage.trim() || sendMutation.isPending}
         >
-          <Send className="w-4 h-4" /> Send to Students
+          <Send className="w-4 h-4" /> {sendMutation.isPending ? 'Sending...' : 'Send to Students'}
         </Button>
       </div>
 
       <div className="glass-card rounded-xl p-4">
         <h3 className="font-display font-semibold mb-3">Recent Notifications</h3>
         <div className="space-y-2">
-          {mockNotifications.map(n => (
-            <div key={n.id} className="p-3 rounded-lg bg-muted text-sm">
+          {recentNotifications.length > 0 ? recentNotifications.map(n => (
+            <div key={n.id} className="p-3 rounded-lg bg-muted text-sm border border-border">
               <div className="flex items-center gap-2 mb-1">
                 <span className={`w-2 h-2 rounded-full ${
                   n.type === 'emergency' ? 'bg-destructive' : n.type === 'warning' ? 'bg-warning' : 'bg-info'
                 }`} />
                 <span className="font-semibold">{n.title}</span>
+                <span className="text-[10px] text-muted-foreground ml-auto">{new Date(n.timestamp).toLocaleTimeString()}</span>
               </div>
               <p className="text-muted-foreground text-xs">{n.message}</p>
             </div>
-          ))}
+          )) : (
+            <div className="p-4 text-center text-sm text-muted-foreground">No recent notifications</div>
+          )}
         </div>
       </div>
     </div>

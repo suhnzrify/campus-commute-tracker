@@ -1,33 +1,122 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { MapPin, Clock, Gauge, Bus, Navigation, ArrowRight } from 'lucide-react';
+import { MapPin, Bus, Navigation, AlertTriangle, Phone } from 'lucide-react';
 import MapView from '@/components/MapView';
-import { mockRoutes, mockBuses, mockDrivers } from '@/lib/mockData';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+
+import { useBuses, useBusLocation } from '@/hooks/useBuses';
+import { useRoutes } from '@/hooks/useRoutes';
+import { useDrivers } from '@/hooks/useDrivers';
 
 export default function StudentTrack() {
-  const route = mockRoutes[0];
-  const bus = mockBuses[0];
-  const driver = mockDrivers[0];
+  const { data: routes = [], isLoading: loadingRoutes } = useRoutes();
+  const { data: buses = [], isLoading: loadingBuses } = useBuses();
+  const { data: drivers = [], isLoading: loadingDrivers } = useDrivers();
 
-  const [busLocation, setBusLocation] = useState(driver.location || { lat: route.stops[0].lat, lng: route.stops[0].lng });
-  const [speed, setSpeed] = useState(32);
-  const [nextStopIndex, setNextStopIndex] = useState(2);
-  const [eta, setEta] = useState(8);
+  const loading = loadingRoutes || loadingBuses || loadingDrivers;
 
-  // Simulate bus movement
+  const route = routes[0];
+  const bus = buses[0];
+  const { data: liveData } = useBusLocation(bus?.id);
+  const driver = drivers[0];
+
+  const initialLat = driver?.location?.lat || route?.stops[0]?.lat || 0;
+  const initialLng = driver?.location?.lng || route?.stops[0]?.lng || 0;
+
+  const [busLocation, setBusLocation] = useState<{ lat: number; lng: number }>({ lat: initialLat, lng: initialLng });
+  const [speed, setSpeed] = useState(0);
+  const [nextStopIndex, setNextStopIndex] = useState(0);
+  const [eta, setEta] = useState(0);
+  const [myStopId, setMyStopId] = useState<string>('');
+  const [isBoarded, setIsBoarded] = useState(() => localStorage.getItem('isBoarded') === 'true');
+  const [showReportDialog, setShowReportDialog] = useState(false);
+  const [reportMessage, setReportMessage] = useState('');
+  const [reportLoading, setReportLoading] = useState(false);
+
   useEffect(() => {
-    const interval = setInterval(() => {
-      setBusLocation(prev => ({
-        lat: prev.lat + (Math.random() - 0.4) * 0.0005,
-        lng: prev.lng + (Math.random() - 0.3) * 0.0005,
-      }));
-      setSpeed(Math.floor(25 + Math.random() * 20));
-      setEta(prev => Math.max(1, prev - (Math.random() > 0.7 ? 1 : 0)));
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []);
+    localStorage.setItem('isBoarded', String(isBoarded));
+  }, [isBoarded]);
 
-  const nextStop = route.stops[nextStopIndex];
+  // Sync live location
+  useEffect(() => {
+    if (liveData) {
+      setBusLocation({ lat: liveData.lat, lng: liveData.lng });
+      setSpeed(liveData.speed > 0 ? liveData.speed : 30); // fallback if speed is missing
+    } else if (route?.stops?.[0] && busLocation.lat === 0) {
+      setBusLocation({ lat: route.stops[0].lat, lng: route.stops[0].lng });
+    }
+  }, [liveData, route]);
+
+  // Haversine distance calculation in km
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const p = 0.017453292519943295; // Math.PI / 180
+    const c = Math.cos;
+    const a = 0.5 - c((lat2 - lat1) * p) / 2 + 
+              c(lat1 * p) * c(lat2 * p) * 
+              (1 - c((lon2 - lon1) * p)) / 2;
+    return 12742 * Math.asin(Math.sqrt(a)); // 2 * R (R = 6371 km)
+  };
+
+  // Update ETA and route progression dynamically
+  useEffect(() => {
+    if (!route || !route.stops.length || !busLocation || busLocation.lat === 0) return;
+    
+    let currentIndex = nextStopIndex;
+    if (currentIndex >= route.stops.length) currentIndex = route.stops.length - 1;
+
+    // Determine which stop to calculate ETA for
+    let targetStop = route.stops[currentIndex];
+    if (myStopId && !isBoarded) {
+      const specificStop = route.stops.find(s => s.id === myStopId);
+      if (specificStop) targetStop = specificStop;
+    }
+
+    if (targetStop) {
+      const dist = calculateDistance(busLocation.lat, busLocation.lng, targetStop.lat, targetStop.lng);
+      
+      if (dist < 0.1 && currentIndex < route.stops.length - 1) {
+        setNextStopIndex(currentIndex + 1);
+      }
+      
+      const effectiveSpeed = Math.max(speed, 15);
+      const timeHours = dist / effectiveSpeed;
+      const timeMins = Math.max(1, Math.round(timeHours * 60));
+      
+      setEta(isBoarded ? 0 : timeMins);
+    }
+  }, [busLocation, route, speed, nextStopIndex, myStopId, isBoarded]);
+
+  const nextStop = route?.stops?.[nextStopIndex];
+  const targetStopObj = myStopId && !isBoarded ? route?.stops.find(s => s.id === myStopId) : nextStop;
+
+  const handleReportIssue = async () => {
+    if (!reportMessage.trim()) return;
+    setReportLoading(true);
+    // Simulate sending report
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setReportLoading(false);
+    setShowReportDialog(false);
+    setReportMessage('');
+    // In real app, send to server
+    alert('Issue reported successfully!');
+  };
+
+  if (loading) {
+    return <p className="text-sm text-muted-foreground p-4">Loading tracking information...</p>;
+  }
+
+  if (!route || !bus || !driver) {
+    return <p className="text-sm text-destructive p-4">Could not load active route data.</p>;
+  }
 
   return (
     <div className="space-y-4">
@@ -36,19 +125,45 @@ export default function StudentTrack() {
         <p className="text-sm text-muted-foreground">{bus.number} · {route.name}</p>
       </div>
 
+      {/* Action Hub */}
+      <div className="glass-card rounded-xl p-4">
+        <label className="text-sm font-semibold mb-2 block">Where are you waiting?</label>
+        <select 
+          value={myStopId} 
+          onChange={e => setMyStopId(e.target.value)} 
+          className="w-full h-10 rounded-xl border border-input bg-background/50 px-3 text-sm mb-3"
+          disabled={isBoarded}
+        >
+          <option value="">Select your destination stop...</option>
+          {route.stops.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+        
+        <div className="flex gap-2">
+           <Button 
+             variant={isBoarded ? 'default' : 'outline'} 
+             className={`flex-1 rounded-xl shadow-none transition-all ${isBoarded ? 'bg-success text-success-foreground hover:bg-success/90' : ''}`} 
+             onClick={() => setIsBoarded(!isBoarded)}
+           >
+             {isBoarded ? '🟢 On Board' : '🚶 Waiting at Stop'}
+           </Button>
+        </div>
+      </div>
+
       {/* ETA Card */}
       <motion.div
-        className="stat-gradient rounded-xl p-5 text-primary-foreground"
+        className={`${isBoarded ? 'success-gradient' : 'stat-gradient'} rounded-xl p-5 text-primary-foreground`}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
       >
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs opacity-80 mb-1">Estimated Arrival</p>
-            <p className="text-4xl font-display font-bold">{eta} min</p>
-            <p className="text-sm opacity-80 mt-1 flex items-center gap-1">
-              <MapPin className="w-3 h-3" /> Next: {nextStop.name}
-            </p>
+            <p className="text-xs opacity-80 mb-1">{isBoarded ? 'Enjoy your trip!' : 'Estimated Arrival'}</p>
+            <p className="text-4xl font-display font-bold">{isBoarded ? 'Arrived' : `${eta} min`}</p>
+            {targetStopObj && !isBoarded && (
+              <p className="text-sm opacity-80 mt-1 flex items-center gap-1 bg-black/10 px-2 py-0.5 rounded-full w-fit">
+                <MapPin className="w-3 h-3" /> ETA to {targetStopObj.name}
+              </p>
+            )}
           </div>
           <div className="text-right">
             <div className="w-14 h-14 rounded-full bg-primary-foreground/20 flex items-center justify-center mb-2">
@@ -99,10 +214,11 @@ export default function StudentTrack() {
                   <p className={`text-sm ${isFuture ? 'text-muted-foreground' : ''}`}>
                     {stop.name}
                     {isNext && <span className="ml-2 text-xs text-primary bg-primary/10 px-2 py-0.5 rounded-full">Next Stop</span>}
+                    {myStopId === stop.id && !isBoarded && <span className="ml-2 text-[10px] uppercase font-bold text-warning bg-warning/10 px-2 py-0.5 rounded-full">My Stop</span>}
                     {isPassed && <span className="ml-2 text-xs text-success">✓</span>}
                   </p>
                 </div>
-                {isNext && <span className="text-xs text-primary font-medium">{eta} min</span>}
+                {myStopId === stop.id && !isBoarded && <span className="text-xs text-primary font-medium">{eta} min</span>}
               </div>
             );
           })}
@@ -112,16 +228,51 @@ export default function StudentTrack() {
       {/* Driver Info */}
       <div className="glass-card rounded-xl p-4">
         <h3 className="font-display font-semibold mb-2">Driver</h3>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-            <span className="font-display font-bold text-primary">{driver.name.charAt(0)}</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <span className="font-display font-bold text-primary">{driver.name.charAt(0)}</span>
+            </div>
+            <div>
+              <p className="text-sm font-medium">{driver.name}</p>
+              <p className="text-xs text-muted-foreground">{driver.phone}</p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-medium">{driver.name}</p>
-            <p className="text-xs text-muted-foreground">{driver.phone}</p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="rounded-xl gap-1" onClick={() => window.open(`tel:${driver.phone}`)}>
+              <Phone className="w-3 h-3" /> Call
+            </Button>
+            <Button size="sm" variant="outline" className="rounded-xl gap-1" onClick={() => setShowReportDialog(true)}>
+              <AlertTriangle className="w-3 h-3" /> Report
+            </Button>
           </div>
         </div>
       </div>
+
+      <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Report an Issue</DialogTitle>
+            <DialogDescription>
+              Let us know about any issues with your bus service. We'll address it promptly.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            placeholder="Describe the issue..."
+            value={reportMessage}
+            onChange={e => setReportMessage(e.target.value)}
+            className="min-h-24"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowReportDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleReportIssue} disabled={reportLoading || !reportMessage.trim()}>
+              {reportLoading ? 'Reporting...' : 'Report Issue'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

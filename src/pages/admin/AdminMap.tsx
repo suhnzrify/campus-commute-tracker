@@ -1,9 +1,19 @@
-import { mockDrivers, mockRoutes } from '@/lib/mockData';
 import MapView from '@/components/MapView';
+import { useDrivers } from '@/hooks/useDrivers';
+import { useRoutes } from '@/hooks/useRoutes';
 
 export default function AdminMap() {
-  const activeDriver = mockDrivers.find(d => d.isOnTrip);
-  const allStops = mockRoutes.flatMap(r => r.stops);
+  const { data: drivers = [], isLoading: loadingDrivers } = useDrivers();
+  const { data: routes = [], isLoading: loadingRoutes } = useRoutes();
+
+  const loading = loadingDrivers || loadingRoutes;
+
+  const activeDriver = drivers.find(d => d.isOnTrip);
+  const allStops = routes.flatMap(r => r.stops);
+
+  if (loading) {
+    return <div className="p-4 text-muted-foreground">Loading map data...</div>;
+  }
 
   return (
     <div className="space-y-4">
