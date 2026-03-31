@@ -31,7 +31,7 @@ files.forEach(file => {
       }
     }
     
-    // Replace all occurrences: 'http://localhost:4000/api/route' -> `${API_URL}/route`
+    // Replace all occurrences: '/api/route' -> `${API_URL}/route`
     text = text.replace(/['"`]http:\/\/localhost:4000\/api([^'"`]*)['"`]/g, '`${API_URL}$1`');
 
     fs.writeFileSync(file, text, 'utf8');

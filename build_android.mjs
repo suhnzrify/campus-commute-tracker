@@ -5,7 +5,7 @@ console.log("🚀 Initializing Cloudflare Zero-Trust Tunnel Gateway...");
 
 let tunnelCreated = false;
 
-const cloudflared = spawn('npx', ['--yes', 'cloudflared', 'tunnel', '--url', 'http://localhost:4000'], { shell: true });
+const cloudflared = spawn('npx', ['--yes', 'cloudflared', 'tunnel', '--url', 'https://lbs-bus-tracker.onrender.com/api'], { shell: true });
 
 cloudflared.stderr.on('data', (data) => {
     const text = data.toString();

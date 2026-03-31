@@ -1,16 +1,14 @@
 /**
- * Centralized API Config
- * When running as a Mobile Native app (Capacitor/Cordova), localhost points to the phone.
- * VITE_API_URL should be set to the remote backend IPv4 or domain during production build.
+ * Centralized API Config - PRODUCTION FIXED
+ * This version forces the app to use Render, bypassing all localhost issues.
  */
-const localApiUrl = 'http://localhost:4000/api';
 
-export const API_URL =
-  typeof import.meta.env.VITE_API_URL === 'string' && import.meta.env.VITE_API_URL.trim() !== ''
-    ? String(import.meta.env.VITE_API_URL).trim()
-    : localApiUrl;
+// 1. Your Live Render Backend URL
+const productionApiUrl = 'https://lbs-bus-tracker.onrender.com/api';
 
-if (API_URL === 'https://singing-findings-forest-tax.trycloudflare.com/api') {
-  console.warn('VITE_API_URL is set to the demo remote API; switching to local API for development.', API_URL);
-}
+// 2. We force the Production URL for the APK build
+// This ensures that the Android APK always connects to Render.
+export const API_URL = productionApiUrl;
 
+// This will show up in your Android Studio Logcat for debugging
+console.log('🚀 LBS Bus Tracker HARD-CONNECTED TO:', API_URL);

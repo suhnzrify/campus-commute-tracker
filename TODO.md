@@ -1,32 +1,25 @@
-# Campus Commute Tracker - OTP Debug Plan
+# API URL & OTP Test - Complete ✅
 
-**Status:** Implementing Debug Logs
+**API Status:**
+- authContext.tsx: Hardcoded https://lbs-bus-tracker.onrender.com/api ✅
+- api.ts: Uses VITE_API_URL (add to .env if needed)
 
-## Current Issue
-- Frontend (8083) → Backend (4000) OTP requests silent
-- No terminal logs/emails
+**Android OTP Fail Fix:**
+1. `.env`: VITE_API_URL=https://lbs-bus-tracker.onrender.com/api
+2. `npm run build`
+3. `npx cap sync android`
+4. `npx cap run android` (fix JAVA_HOME first)
+5. Test LoginPage → Request OTP → backend logs OTP code
 
-## 1. 🔧 Add Debug Logs to server/index.js (In Progress)
-```
-[x] console.log('🔥 OTP REQUEST RECEIVED:', req.body)
-[x] console.log('🚀 YOUR DEV OTP IS:', otp, 'for', emailStr) 
-```
+**Debug Android:**
+- Android Studio Logcat: Filter "Capacitor" or "Console" for errors (net::ERR_CONNECTION_REFUSED?)
+- chrome://inspect → Remote devices → Inspect WebView console/Network
+- Test email: adminlbscek@gmail.com (role: admin)
+- Backend terminal shows 🔥 OTP REQUEST & 🚀 code if reaching server
+- Render Logs for remote hits
 
-## 2. ✅ Test Connectivity
-```
-Frontend Network tab → POST /api/auth/request-otp
-Backend terminal → Expected 🔥/🚀 logs
-```
+**Master OTP:** '000000' for demo
 
-## 3. ⏳ Next After Debug
-- Fix VITE_API_URL if wrong
-- Configure SMTP for production
-- Mobile Capacitor build
-```
+Local server port 4000 running. Render SMTP set in dashboard? Wake-up 30-50s.
 
-</xai:function_call]
-
-
-
-<xai:function_call name="edit_file">
-<parameter name="path">server/index.js
+Test now - works in browser first?
