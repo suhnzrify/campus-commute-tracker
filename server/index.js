@@ -10,9 +10,9 @@ const PORT = process.env.PORT || 4000;
 
 // Optimized CORS for Production (Allows specific origins or defaults to true for dev)
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || true;
-app.use(cors({ 
-  origin: ALLOWED_ORIGIN, 
-  credentials: true 
+app.use(cors({
+  origin: ALLOWED_ORIGIN,
+  credentials: true
 }));
 app.use(express.json());
 
@@ -24,8 +24,8 @@ function generateOTP() {
 // --- EMAIL TRANSPORTER ---
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, // Port 587 is STARTTLS
+  port: 465,
+  secure: true, // Port 587 is STARTTLS
   requireTLS: true, // Force STARTTLS
   auth: {
     user: process.env.SMTP_USER,
@@ -64,10 +64,10 @@ app.post('/api/auth/request-otp', async (req, res) => {
 
     const otp = generateOTP();
     const expiresAt = Date.now() + 5 * 60 * 1000;
-    
+
     // Log for debugging (but secure transmission is via email)
     console.log('\n\x1b[32m[LOGIN REQUEST]\x1b[0m Sending OTP to', email, '\n');
-    
+
     const mailOptions = {
       from: `"LBS Bus Tracker" <${process.env.SMTP_USER}>`,
       to: email,
@@ -89,7 +89,7 @@ app.post('/api/auth/request-otp', async (req, res) => {
     };
 
     await transporter.sendMail(mailOptions);
-    
+
     otpCache.set(email.toLowerCase(), { otp, expiresAt });
     res.json({ success: true });
   } catch (err) {
