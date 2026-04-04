@@ -16,23 +16,37 @@ import {
 import { useBuses, useBusLocation } from '@/hooks/useBuses';
 import { useRoutes } from '@/hooks/useRoutes';
 import { useDrivers } from '@/hooks/useDrivers';
+import { useStudents } from '@/hooks/useStudents';
+import { useAuth } from '@/lib/authContext';
 
 export default function StudentTrack() {
+  const { user } = useAuth();
+
   const { data: routes = [], isLoading: loadingRoutes } = useRoutes();
   const { data: buses = [], isLoading: loadingBuses } = useBuses();
   const { data: drivers = [], isLoading: loadingDrivers } = useDrivers();
+  const { data: students = [], isLoading: loadingStudents } = useStudents();
 
-  const loading = loadingRoutes || loadingBuses || loadingDrivers;
+  const loading = loadingRoutes || loadingBuses || loadingDrivers || loadingStudents;
 
-  const route = routes[0];
-  const bus = buses[0];
+  // Find the logged-in student's profile and their assigned bus
+  const currentStudent = students.find(s => s.id === user?.entityId);
+  const assignedBusId = currentStudent?.assignedBusId || '';
+
+  // Use assigned bus if available, else fallback to first active bus
+  const bus = assignedBusId
+    ? buses.find(b => b.id === assignedBusId)
+    : buses.find(b => b.status === 'active') || buses[0];
+
+  // Find the route for this bus
+  const route = bus?.routeId ? routes.find(r => r.id === bus.routeId) : routes[0];
+
+  // Find driver assigned to this bus
+  const driver = bus ? drivers.find(d => d.assignedBusId === bus.id) : drivers[0];
+
   const { data: liveData } = useBusLocation(bus?.id);
-  const driver = drivers[0];
 
-  const initialLat = driver?.location?.lat || route?.stops[0]?.lat || 0;
-  const initialLng = driver?.location?.lng || route?.stops[0]?.lng || 0;
-
-  const [busLocation, setBusLocation] = useState<{ lat: number; lng: number }>({ lat: initialLat, lng: initialLng });
+  const [busLocation, setBusLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [speed, setSpeed] = useState(0);
   const [nextStopIndex, setNextStopIndex] = useState(0);
   const [eta, setEta] = useState(0);
@@ -46,34 +60,40 @@ export default function StudentTrack() {
     localStorage.setItem('isBoarded', String(isBoarded));
   }, [isBoarded]);
 
+  // Initialise pickup stop from student profile
+  useEffect(() => {
+    if (currentStudent?.pickupStopId && !myStopId) {
+      setMyStopId(currentStudent.pickupStopId);
+    }
+  }, [currentStudent]);
+
   // Sync live location
   useEffect(() => {
     if (liveData) {
       setBusLocation({ lat: liveData.lat, lng: liveData.lng });
-      setSpeed(liveData.speed > 0 ? liveData.speed : 30); // fallback if speed is missing
-    } else if (route?.stops?.[0] && busLocation.lat === 0) {
+      setSpeed(liveData.speed > 0 ? liveData.speed : 30);
+    } else if (route?.stops?.[0] && !busLocation) {
       setBusLocation({ lat: route.stops[0].lat, lng: route.stops[0].lng });
     }
   }, [liveData, route]);
 
-  // Haversine distance calculation in km
+  // Haversine distance in km
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const p = 0.017453292519943295; // Math.PI / 180
+    const p = 0.017453292519943295;
     const c = Math.cos;
-    const a = 0.5 - c((lat2 - lat1) * p) / 2 + 
-              c(lat1 * p) * c(lat2 * p) * 
+    const a = 0.5 - c((lat2 - lat1) * p) / 2 +
+              c(lat1 * p) * c(lat2 * p) *
               (1 - c((lon2 - lon1) * p)) / 2;
-    return 12742 * Math.asin(Math.sqrt(a)); // 2 * R (R = 6371 km)
+    return 12742 * Math.asin(Math.sqrt(a));
   };
 
   // Update ETA and route progression dynamically
   useEffect(() => {
     if (!route || !route.stops.length || !busLocation || busLocation.lat === 0) return;
-    
+
     let currentIndex = nextStopIndex;
     if (currentIndex >= route.stops.length) currentIndex = route.stops.length - 1;
 
-    // Determine which stop to calculate ETA for
     let targetStop = route.stops[currentIndex];
     if (myStopId && !isBoarded) {
       const specificStop = route.stops.find(s => s.id === myStopId);
@@ -82,15 +102,15 @@ export default function StudentTrack() {
 
     if (targetStop) {
       const dist = calculateDistance(busLocation.lat, busLocation.lng, targetStop.lat, targetStop.lng);
-      
+
       if (dist < 0.1 && currentIndex < route.stops.length - 1) {
         setNextStopIndex(currentIndex + 1);
       }
-      
+
       const effectiveSpeed = Math.max(speed, 15);
       const timeHours = dist / effectiveSpeed;
       const timeMins = Math.max(1, Math.round(timeHours * 60));
-      
+
       setEta(isBoarded ? 0 : timeMins);
     }
   }, [busLocation, route, speed, nextStopIndex, myStopId, isBoarded]);
@@ -101,21 +121,35 @@ export default function StudentTrack() {
   const handleReportIssue = async () => {
     if (!reportMessage.trim()) return;
     setReportLoading(true);
-    // Simulate sending report
     await new Promise(resolve => setTimeout(resolve, 1000));
     setReportLoading(false);
     setShowReportDialog(false);
     setReportMessage('');
-    // In real app, send to server
     alert('Issue reported successfully!');
   };
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground p-4">Loading tracking information...</p>;
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <div className="w-8 h-8 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+        <p className="text-sm text-muted-foreground">Loading tracking information...</p>
+      </div>
+    );
   }
 
-  if (!route || !bus || !driver) {
-    return <p className="text-sm text-destructive p-4">Could not load active route data.</p>;
+  if (!route || !bus) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-2xl font-display font-bold">Track My Bus</h1>
+        <div className="glass-card rounded-xl p-8 text-center">
+          <Bus className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+          <p className="font-semibold mb-1">No Bus Assigned</p>
+          <p className="text-sm text-muted-foreground">
+            You haven't been assigned to a bus yet. Please contact your admin.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -128,24 +162,24 @@ export default function StudentTrack() {
       {/* Action Hub */}
       <div className="glass-card rounded-xl p-4">
         <label className="text-sm font-semibold mb-2 block">Where are you waiting?</label>
-        <select 
-          value={myStopId} 
-          onChange={e => setMyStopId(e.target.value)} 
+        <select
+          value={myStopId}
+          onChange={e => setMyStopId(e.target.value)}
           className="w-full h-10 rounded-xl border border-input bg-background/50 px-3 text-sm mb-3"
           disabled={isBoarded}
         >
-          <option value="">Select your destination stop...</option>
+          <option value="">Select your stop...</option>
           {route.stops.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
-        
+
         <div className="flex gap-2">
-           <Button 
-             variant={isBoarded ? 'default' : 'outline'} 
-             className={`flex-1 rounded-xl shadow-none transition-all ${isBoarded ? 'bg-success text-success-foreground hover:bg-success/90' : ''}`} 
-             onClick={() => setIsBoarded(!isBoarded)}
-           >
-             {isBoarded ? '🟢 On Board' : '🚶 Waiting at Stop'}
-           </Button>
+          <Button
+            variant={isBoarded ? 'default' : 'outline'}
+            className={`flex-1 rounded-xl shadow-none transition-all ${isBoarded ? 'bg-success text-success-foreground hover:bg-success/90' : ''}`}
+            onClick={() => setIsBoarded(!isBoarded)}
+          >
+            {isBoarded ? '🟢 On Board' : '🚶 Waiting at Stop'}
+          </Button>
         </div>
       </div>
 
@@ -226,28 +260,30 @@ export default function StudentTrack() {
       </div>
 
       {/* Driver Info */}
-      <div className="glass-card rounded-xl p-4">
-        <h3 className="font-display font-semibold mb-2">Driver</h3>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <span className="font-display font-bold text-primary">{driver.name.charAt(0)}</span>
+      {driver && (
+        <div className="glass-card rounded-xl p-4">
+          <h3 className="font-display font-semibold mb-2">Driver</h3>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <span className="font-display font-bold text-primary">{driver.name.charAt(0)}</span>
+              </div>
+              <div>
+                <p className="text-sm font-medium">{driver.name}</p>
+                <p className="text-xs text-muted-foreground">{driver.phone}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-medium">{driver.name}</p>
-              <p className="text-xs text-muted-foreground">{driver.phone}</p>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" className="rounded-xl gap-1" onClick={() => window.open(`tel:${driver.phone}`)}>
+                <Phone className="w-3 h-3" /> Call
+              </Button>
+              <Button size="sm" variant="outline" className="rounded-xl gap-1" onClick={() => setShowReportDialog(true)}>
+                <AlertTriangle className="w-3 h-3" /> Report
+              </Button>
             </div>
-          </div>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" className="rounded-xl gap-1" onClick={() => window.open(`tel:${driver.phone}`)}>
-              <Phone className="w-3 h-3" /> Call
-            </Button>
-            <Button size="sm" variant="outline" className="rounded-xl gap-1" onClick={() => setShowReportDialog(true)}>
-              <AlertTriangle className="w-3 h-3" /> Report
-            </Button>
           </div>
         </div>
-      </div>
+      )}
 
       <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
         <DialogContent>

@@ -76,3 +76,59 @@ export function useUpdateBusLocation() {
     },
   });
 }
+
+export function useCreateBus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (bus: { number: string; model: string; capacity: number; status?: string; routeId?: string; driverId?: string }) => {
+      const res = await fetch(`${API_URL}/buses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bus),
+      });
+      if (!res.ok) {
+        const error = await res.text();
+        throw new Error(error);
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['buses'] });
+    },
+  });
+}
+
+export function useUpdateBus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string } & { number?: string; model?: string; capacity?: number; status?: string; routeId?: string; driverId?: string }) => {
+      const res = await fetch(`${API_URL}/buses/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) {
+        const error = await res.text();
+        throw new Error(error);
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['buses'] });
+    },
+  });
+}
+
+export function useDeleteBus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`${API_URL}/buses/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['buses'] });
+    },
+  });
+}

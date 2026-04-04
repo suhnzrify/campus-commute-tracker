@@ -1,4 +1,3 @@
-import { API_URL } from '@/lib/api';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Bus, Plus, Pencil, Trash2, X, Users, ChevronDown } from 'lucide-react';
@@ -13,10 +12,15 @@ import {
 } from '@/components/ui/collapsible';
 import type { Bus as BusType } from '@/lib/mockData';
 import { useBuses } from '@/hooks/useBuses';
+import { useCreateBus, useUpdateBus, useDeleteBus } from '@/hooks/useBuses';
+
 
 export default function AdminBuses() {
   const busesQuery = useBuses();
   const buses = busesQuery.data || [];
+  const createBus = useCreateBus();
+  const updateBus = useUpdateBus();
+  const deleteBus = useDeleteBus();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<BusType | null>(null);
   const [form, setForm] = useState({ number: '', model: '', capacity: '' });
@@ -26,37 +30,20 @@ export default function AdminBuses() {
   const handleSave = async () => {
     try {
       if (editing) {
-        const res = await fetch(`${API_URL}/buses/${editing.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            number: form.number,
-            model: form.model,
-            capacity: Number(form.capacity),
-          }),
-        });
-        if (!res.ok) throw new Error(await res.text());
-        busesQuery.refetch();
+        await updateBus.mutateAsync({ id: editing.id, ...form, capacity: Number(form.capacity) });
       } else {
-        const res = await fetch(`${API_URL}/buses`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            number: form.number,
-            model: form.model,
-            capacity: Number(form.capacity),
-          }),
-        });
-        if (!res.ok) throw new Error(await res.text());
-        busesQuery.refetch();
+        await createBus.mutateAsync({ number: form.number, model: form.model, capacity: Number(form.capacity) });
       }
+      busesQuery.refetch();
     } catch (err: any) {
       setError(err.message || 'Failed to save bus.');
+      return;
     }
     setShowForm(false);
     setEditing(null);
     setForm({ number: '', model: '', capacity: '' });
   };
+
 
   const handleEdit = (bus: BusType) => {
     setEditing(bus);
@@ -66,12 +53,12 @@ export default function AdminBuses() {
 
   const handleDelete = async (id: string) => {
     try {
-      await fetch(`${API_URL}/buses/${id}`, { method: 'DELETE' });
-      busesQuery.refetch();
+      await deleteBus.mutateAsync(id);
     } catch {
       setError('Failed to delete bus.');
     }
   };
+
 
   return (
     <div className="space-y-4">
@@ -93,9 +80,12 @@ export default function AdminBuses() {
           <Input id="bus-number" name="bus-number" placeholder="Bus Number" value={form.number} onChange={e => setForm({ ...form, number: e.target.value })} className="rounded-xl" />
           <Input id="bus-model" name="bus-model" placeholder="Model" value={form.model} onChange={e => setForm({ ...form, model: e.target.value })} className="rounded-xl" />
           <Input id="bus-capacity" name="bus-capacity" type="number" placeholder="Capacity" value={form.capacity} onChange={e => setForm({ ...form, capacity: e.target.value })} className="rounded-xl" />
-          <Button onClick={handleSave} className="w-full rounded-xl">Save</Button>
+          <Button onClick={handleSave} className="w-full rounded-xl" disabled={createBus.isPending || updateBus.isPending}>
+            {(createBus.isPending || updateBus.isPending) ? 'Saving...' : 'Save'}
+          </Button>
         </motion.div>
       )}
+
 
       <div className="grid gap-3 sm:grid-cols-2">
         {buses.map(bus => (

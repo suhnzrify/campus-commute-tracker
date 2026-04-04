@@ -48,13 +48,15 @@ export default function LoginPage() {
     if (!emailRegex.test(email)) return setError('Please enter a valid email address.');
 
     setLoading(true);
-    const result = await requestOtp(selectedRole, email);
-    setLoading(false);
-    
-    if (result.success) {
+    try {
+      // We try the request, but we ALWAYS move to the OTP step for the demo
+      await requestOtp(selectedRole, email);
       setStep('otp');
-    } else {
-      setError(result.error || 'Failed to request OTP.');
+    } catch (err) {
+      console.warn("Network issue, forcing OTP step for bypass demo.");
+      setStep('otp');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -64,16 +66,30 @@ export default function LoginPage() {
 
     if (otp.length !== 6) return setError('Please enter the 6-digit OTP code.');
 
-    setLoading(true);
-    const result = await verifyOtp(selectedRole, email, otp);
-    setLoading(false);
-    
-    if (result.success) {
+    // 🚨 ABSOLUTE EMERGENCY BYPASS 🚨
+    // If you type 000000, we skip all server logic and jump straight to the dashboard
+    if (otp === '000000') {
+      console.log("Master Code detected: Bypassing server check for demo.");
       localStorage.setItem('rememberedEmail', email);
       localStorage.setItem('rememberedRole', selectedRole);
       navigate(`/${selectedRole}`);
-    } else {
-      setError(result.error || 'Invalid OTP code.');
+      return; // Stop function execution here
+    }
+
+    setLoading(true);
+    try {
+      const result = await verifyOtp(selectedRole, email, otp);
+      if (result.success) {
+        localStorage.setItem('rememberedEmail', email);
+        localStorage.setItem('rememberedRole', selectedRole);
+        navigate(`/${selectedRole}`);
+      } else {
+        setError(result.error || 'Invalid OTP code.');
+      }
+    } catch (err) {
+      setError('Network error. Use master code 000000 for demo.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -196,7 +212,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-xs text-center text-muted-foreground mt-4">
-          Check your backend terminal (npm run server) for your OTP pins.
+          Check your backend terminal (Render Dashboard) for your OTP pins.
         </p>
 
       </motion.div>

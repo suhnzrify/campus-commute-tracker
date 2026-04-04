@@ -5,8 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import MapView from '@/components/MapView';
 import type { Route as RouteType, BusStop } from '@/lib/mockData';
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://lbs-bus-tracker.onrender.com';
+import { API_URL } from '@/lib/api';
 
 export default function AdminRoutes() {
   const [routes, setRoutes] = useState<RouteType[]>([]);
@@ -33,8 +32,7 @@ export default function AdminRoutes() {
     const load = async () => {
       try {
         setLoading(true);
-        const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://lbs-bus-tracker.onrender.com';
-        const res = await fetch(`${API_BASE}/api/routes`);
+        const res = await fetch(`${API_URL}/routes`);
         const data = await res.json();
         setRoutes(data);
         if (data.length > 0 && !selectedRouteId) {
@@ -58,7 +56,7 @@ export default function AdminRoutes() {
   const handleSaveRoute = async () => {
     if (!routeName.trim()) return;
     try {
-      const res = await fetch(`${API_BASE}/api/routes`, {
+      const res = await fetch(`${API_URL}/routes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: routeName.trim() }),
@@ -75,7 +73,7 @@ export default function AdminRoutes() {
 
   const handleDeleteRoute = async (id: string) => {
     try {
-      await fetch(`${API_BASE}/api/routes/${id}`, { method: 'DELETE' });
+      await fetch(`${API_URL}/routes/${id}`, { method: 'DELETE' });
       setRoutes(prev => {
         const filtered = prev.filter(r => r.id !== id);
         if (selectedRouteId === id && filtered.length > 0) {
@@ -123,7 +121,7 @@ export default function AdminRoutes() {
 
     try {
       if (editingStop) {
-        const res = await fetch(`${API_BASE}/api/stops/${editingStop.id}`, {
+        const res = await fetch(`${API_URL}/stops/${editingStop.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -146,7 +144,7 @@ export default function AdminRoutes() {
           )
         );
       } else {
-        const res = await fetch(`${API_BASE}/api/routes/${selectedRoute.id}/stops`, {
+        const res = await fetch(`${API_URL}/routes/${selectedRoute.id}/stops`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -176,7 +174,7 @@ export default function AdminRoutes() {
   const handleDeleteStop = async (id: string) => {
     if (!selectedRoute) return;
     try {
-      await fetch(`${API_BASE}/api/stops/${id}`, { method: 'DELETE' });
+      await fetch(`${API_URL}/stops/${id}`, { method: 'DELETE' });
       setRoutes(prev =>
         prev.map(route =>
           route.id === selectedRoute.id

@@ -20,13 +20,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import type { Driver } from '@/lib/mockData';
+import { useDrivers, useCreateDriver, useUpdateDriver, useDeleteDriver } from '@/hooks/useDrivers';
 import { useBuses } from '@/hooks/useBuses';
-import { API_URL } from '@/lib/api';
+
 
 export default function AdminDrivers() {
+  const { data: drivers = [], refetch: refetchDrivers } = useDrivers();
   const busesQuery = useBuses();
   const buses = busesQuery.data || [];
-  const [drivers, setDrivers] = useState<Driver[]>([]);
+
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Driver | null>(null);
   const [form, setForm] = useState({ name: '', phone: '', email: '', assignedBusId: '' });
@@ -36,54 +38,27 @@ export default function AdminDrivers() {
   const [viewProfile, setViewProfile] = useState<Driver | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const loadDrivers = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_URL}/drivers`);
-      const data = await res.json();
-      setDrivers(data);
-    } catch {
-      setError('Failed to load drivers from server.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadDrivers();
-  }, []);
+  const createDriver = useCreateDriver();
+  const updateDriver = useUpdateDriver();
+  const deleteDriver = useDeleteDriver();
 
   const handleSave = async () => {
-    setLoading(true);
     try {
       if (editing) {
-        const res = await fetch(`${API_URL}/drivers/${editing.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(form),
-        });
-        if (!res.ok) throw new Error(await res.text());
-        const updated: Driver = await res.json();
-        setDrivers(drivers.map(d => (d.id === updated.id ? updated : d)));
+        await updateDriver.mutateAsync({ id: editing.id, ...form, isOnTrip: editing.isOnTrip });
       } else {
-        const res = await fetch(`${API_URL}/drivers`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(form),
-        });
-        if (!res.ok) throw new Error(await res.text());
-        const created: Driver = await res.json();
-        setDrivers([...drivers, created]);
+        await createDriver.mutateAsync({ ...form, isOnTrip: false });
       }
+      refetchDrivers();
     } catch {
       setError('Failed to save driver.');
-    } finally {
-      setLoading(false);
+      return;
     }
     setShowForm(false);
     setEditing(null);
     setForm({ name: '', phone: '', email: '', assignedBusId: '' });
   };
+
 
   const filteredDrivers = drivers.filter(driver =>
     driver.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -93,14 +68,10 @@ export default function AdminDrivers() {
 
   const handleDelete = async () => {
     if (!deleteDialog.driver) return;
-    setLoading(true);
     try {
-      await fetch(`${API_URL}/drivers/${deleteDialog.driver.id}`, { method: 'DELETE' });
-      setDrivers(drivers.filter(d => d.id !== deleteDialog.driver!.id));
+      await deleteDriver.mutateAsync(deleteDialog.driver.id);
     } catch {
       setError('Failed to delete driver.');
-    } finally {
-      setLoading(false);
     }
     setDeleteDialog({ open: false, driver: null });
   };
@@ -110,10 +81,11 @@ export default function AdminDrivers() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-display font-bold">Drivers</h1>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={loadDrivers} disabled={loading} className="rounded-xl">
-             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <Button variant="outline" size="sm" onClick={() => refetchDrivers()} className="rounded-xl">
+             <RefreshCw className="w-4 h-4" />
           </Button>
-          <Button onClick={() => { setShowForm(true); setEditing(null); setForm({ name: '', phone: '', email: '', assignedBusId: '' }); }} size="sm" className="rounded-xl gap-2" disabled={loading}>
+
+          <Button onClick={() => { setShowForm(true); setEditing(null); setForm({ name: '', phone: '', email: '', assignedBusId: '' }); }} size="sm" className="rounded-xl gap-2">
             <Plus className="w-4 h-4" /> Add Driver
           </Button>
         </div>
@@ -143,11 +115,12 @@ export default function AdminDrivers() {
             <option value="">Select Bus</option>
             {buses.map(b => <option key={b.id} value={b.id}>{b.number} - {b.model}</option>)}
           </select>
-          <Button onClick={handleSave} className="w-full rounded-xl" disabled={loading}>
-            {loading ? 'Saving...' : 'Save'}
+          <Button onClick={handleSave} className="w-full rounded-xl" disabled={createDriver.isPending || updateDriver.isPending}>
+            {(createDriver.isPending || updateDriver.isPending) ? 'Saving...' : 'Save'}
           </Button>
         </motion.div>
       )}
+
 
       <div className="grid gap-3 sm:grid-cols-2">
         {filteredDrivers.map(driver => {
@@ -254,8 +227,8 @@ export default function AdminDrivers() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={loading}>
-              {loading ? 'Deleting...' : 'Delete'}
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={deleteDriver.isPending}>
+              {deleteDriver.isPending ? 'Deleting...' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

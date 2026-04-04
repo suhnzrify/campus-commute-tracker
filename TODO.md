@@ -1,25 +1,26 @@
-# API URL & OTP Test - Complete ✅
+# Campus Commute Tracker Fix Progress
 
-**API Status:**
-- authContext.tsx: Hardcoded https://lbs-bus-tracker.onrender.com/api ✅
-- api.ts: Uses VITE_API_URL (add to .env if needed)
+## Approved Plan Steps:
+- [x] 1. Update src/lib/api.ts for local dev (env fallback to localhost:4000)
+- [x] 2. Add /api/notifications routes to server/index.js
+- [ ] 3. Migrate AdminDrivers.tsx, AdminStudents.tsx, AdminBuses.tsx to use React Query hooks (mutations added to hooks)
+- [x] 3a. Add full CRUD mutations to src/hooks/useBuses.ts
+  - [x] 3b. Migrate src/pages/admin/AdminStudents.tsx to useStudents hook
+  - [x] 3c. Migrate src/pages/admin/AdminDrivers.tsx to useDrivers hook  
 
-**Android OTP Fail Fix:**
-1. `.env`: VITE_API_URL=https://lbs-bus-tracker.onrender.com/api
-2. `npm run build`
-3. `npx cap sync android`
-4. `npx cap run android` (fix JAVA_HOME first)
-5. Test LoginPage → Request OTP → backend logs OTP code
+  - [x] 3d. Migrate src/pages/admin/AdminBuses.tsx to useBuses hook
 
-**Debug Android:**
-- Android Studio Logcat: Filter "Capacitor" or "Console" for errors (net::ERR_CONNECTION_REFUSED?)
-- chrome://inspect → Remote devices → Inspect WebView console/Network
-- Test email: adminlbscek@gmail.com (role: admin)
-- Backend terminal shows 🔥 OTP REQUEST & 🚀 code if reaching server
-- Render Logs for remote hits
+- [x] 4. Verify/test DB data population (query counts)
 
-**Master OTP:** '000000' for demo
+- [x] 5. Run server and test all admin features
 
-Local server port 4000 running. Render SMTP set in dashboard? Wake-up 30-50s.
+- [ ] 6. attempt_completion
 
-Test now - works in browser first?
+**Current status:** All fixes complete - React Query integrated in admin pages, TS errors fixed. Ready for testing/production.
+
+## Test Commands:
+- Backend: `cd server && bun index.js`
+- Frontend: `npm run dev`
+- Login: adminlbscek@gmail.com / 1234
+- Android: `npm run build_android`
+

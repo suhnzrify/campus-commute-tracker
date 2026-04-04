@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { API_URL } from './api';
 
 export type UserRole = 'admin' | 'driver' | 'student';
 
-const API_BASE = 'https://lbs-bus-tracker.onrender.com/api';
+// Derive base server URL (strip /api suffix so we can call /api/auth/...)
+const API_BASE = API_URL.replace(/\/api$/, '');
 
 export interface AuthUser {
   id: string;

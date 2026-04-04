@@ -20,18 +20,23 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import type { Student } from '@/lib/mockData';
+import { useStudents, useCreateStudent, useUpdateStudent, useDeleteStudent } from '@/hooks/useStudents';
 import { useBuses } from '@/hooks/useBuses';
 import { useRoutes } from '@/hooks/useRoutes';
-import { API_URL } from '@/lib/api';
+
 
 export default function AdminStudents() {
+  const { data: students = [], refetch: refetchStudents } = useStudents();
   const busesQuery = useBuses();
   const buses = busesQuery.data || [];
   const routesQuery = useRoutes();
   const routes = routesQuery.data || [];
   const allStops = routes.flatMap(r => r.stops);
 
-  const [students, setStudents] = useState<Student[]>([]);
+  const createStudent = useCreateStudent();
+  const updateStudent = useUpdateStudent();
+  const deleteStudent = useDeleteStudent();
+
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Student | null>(null);
   const [search, setSearch] = useState('');
@@ -45,62 +50,29 @@ export default function AdminStudents() {
   const [viewProfile, setViewProfile] = useState<Student | null>(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(`${API_URL}/students`);
-        const data = await res.json();
-        setStudents(data);
-      } catch {
-        setError('Failed to load students from server.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, []);
+
 
   const handleDelete = async () => {
     if (!deleteDialog.student) return;
-    setLoading(true);
     try {
-      await fetch(`${API_URL}/students/${deleteDialog.student.id}`, { method: 'DELETE' });
-      setStudents(students.filter(s => s.id !== deleteDialog.student!.id));
+      await deleteStudent.mutateAsync(deleteDialog.student.id);
     } catch {
       setError('Failed to delete student.');
-    } finally {
-      setLoading(false);
     }
     setDeleteDialog({ open: false, student: null });
   };
 
   const handleSave = async () => {
-    setLoading(true);
     try {
       if (editing) {
-        const res = await fetch(`${API_URL}/students/${editing.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(form),
-        });
-        if (!res.ok) throw new Error(await res.text());
-        const updated: Student = await res.json();
-        setStudents(students.map(s => (s.id === updated.id ? updated : s)));
+        await updateStudent.mutateAsync({ id: editing.id, ...form });
       } else {
-        const res = await fetch(`${API_URL}/students`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(form),
-        });
-        if (!res.ok) throw new Error(await res.text());
-        const created: Student = await res.json();
-        setStudents([...students, created]);
+        await createStudent.mutateAsync(form as any);
       }
+      refetchStudents();
     } catch {
       setError('Failed to save student.');
-    } finally {
-      setLoading(false);
+      return;
     }
     setShowForm(false);
     setEditing(null);
@@ -118,7 +90,7 @@ export default function AdminStudents() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-display font-bold">Students</h1>
-        <Button onClick={() => { setShowForm(true); setEditing(null); setForm({ name: '', registerNumber: '', phone: '', email: '', assignedBusId: '', class: '', semester: '', admissionYear: '', pickupStopId: '', dropStopId: '' }); }} size="sm" className="rounded-xl gap-2" disabled={loading}>
+        <Button onClick={() => { setShowForm(true); setEditing(null); setForm({ name: '', registerNumber: '', phone: '', email: '', assignedBusId: '', class: '', semester: '', admissionYear: '', pickupStopId: '', dropStopId: '' }); }} size="sm" className="rounded-xl gap-2">
           <Plus className="w-4 h-4" /> Add Student
         </Button>
       </div>
@@ -167,8 +139,8 @@ export default function AdminStudents() {
             <option value="">Assign To Bus</option>
             {buses.map(b => <option key={b.id} value={b.id}>{b.number} - {b.model}</option>)}
           </select>
-          <Button onClick={handleSave} className="w-full rounded-xl" disabled={loading}>
-            {loading ? 'Saving...' : 'Save Student'}
+          <Button onClick={handleSave} className="w-full rounded-xl" disabled={createStudent.isPending || updateStudent.isPending}>
+            {(createStudent.isPending || updateStudent.isPending) ? 'Saving...' : 'Save Student'}
           </Button>
         </motion.div>
       )}
@@ -301,9 +273,9 @@ export default function AdminStudents() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={loading}>
-              {loading ? 'Deleting...' : 'Delete'}
-            </AlertDialogAction>
+              <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={deleteStudent.isPending}>
+                {deleteStudent.isPending ? 'Deleting...' : 'Delete'}
+              </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
