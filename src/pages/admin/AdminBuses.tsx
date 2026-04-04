@@ -11,19 +11,20 @@ import {
   CollapsibleTrigger 
 } from '@/components/ui/collapsible';
 import type { Bus as BusType } from '@/lib/mockData';
-import { useBuses } from '@/hooks/useBuses';
-import { useCreateBus, useUpdateBus, useDeleteBus } from '@/hooks/useBuses';
+import { useBuses, useCreateBus, useUpdateBus, useDeleteBus } from '@/hooks/useBuses';
+import { useRoutes } from '@/hooks/useRoutes';
 
 
 export default function AdminBuses() {
   const busesQuery = useBuses();
   const buses = busesQuery.data || [];
+  const { data: routes = [] } = useRoutes();
   const createBus = useCreateBus();
   const updateBus = useUpdateBus();
   const deleteBus = useDeleteBus();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<BusType | null>(null);
-  const [form, setForm] = useState({ number: '', model: '', capacity: '' });
+  const [form, setForm] = useState({ number: '', model: '', capacity: '', routeId: '', status: 'active' });
   const [error, setError] = useState<string | null>(null);
   const [expandedBus, setExpandedBus] = useState<string | null>(null);
 
@@ -32,7 +33,13 @@ export default function AdminBuses() {
       if (editing) {
         await updateBus.mutateAsync({ id: editing.id, ...form, capacity: Number(form.capacity) });
       } else {
-        await createBus.mutateAsync({ number: form.number, model: form.model, capacity: Number(form.capacity) });
+        await createBus.mutateAsync({ 
+          number: form.number, 
+          model: form.model, 
+          capacity: Number(form.capacity),
+          routeId: form.routeId,
+          status: form.status as any
+        });
       }
       busesQuery.refetch();
     } catch (err: any) {
@@ -41,13 +48,19 @@ export default function AdminBuses() {
     }
     setShowForm(false);
     setEditing(null);
-    setForm({ number: '', model: '', capacity: '' });
+    setForm({ number: '', model: '', capacity: '', routeId: '', status: 'active' });
   };
 
 
   const handleEdit = (bus: BusType) => {
     setEditing(bus);
-    setForm({ number: bus.number, model: bus.model, capacity: String(bus.capacity) });
+    setForm({ 
+      number: bus.number, 
+      model: bus.model, 
+      capacity: String(bus.capacity),
+      routeId: bus.routeId || '',
+      status: bus.status || 'active'
+    });
     setShowForm(true);
   };
 
@@ -64,7 +77,7 @@ export default function AdminBuses() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-display font-bold">Buses</h1>
-        <Button onClick={() => { setShowForm(true); setEditing(null); setForm({ number: '', model: '', capacity: '' }); }} size="sm" className="rounded-xl gap-2">
+        <Button onClick={() => { setShowForm(true); setEditing(null); setForm({ number: '', model: '', capacity: '', routeId: '', status: 'active' }); }} size="sm" className="rounded-xl gap-2">
           <Plus className="w-4 h-4" /> Add Bus
         </Button>
       </div>
@@ -78,10 +91,34 @@ export default function AdminBuses() {
             <button onClick={() => setShowForm(false)}><X className="w-4 h-4" /></button>
           </div>
           <Input id="bus-number" name="bus-number" placeholder="Bus Number" value={form.number} onChange={e => setForm({ ...form, number: e.target.value })} className="rounded-xl" />
-          <Input id="bus-model" name="bus-model" placeholder="Model" value={form.model} onChange={e => setForm({ ...form, model: e.target.value })} className="rounded-xl" />
-          <Input id="bus-capacity" name="bus-capacity" type="number" placeholder="Capacity" value={form.capacity} onChange={e => setForm({ ...form, capacity: e.target.value })} className="rounded-xl" />
+          <div className="grid grid-cols-2 gap-2">
+            <Input id="bus-model" name="bus-model" placeholder="Model" value={form.model} onChange={e => setForm({ ...form, model: e.target.value })} className="rounded-xl" />
+            <Input id="bus-capacity" name="bus-capacity" type="number" placeholder="Capacity" value={form.capacity} onChange={e => setForm({ ...form, capacity: e.target.value })} className="rounded-xl" />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              value={form.routeId}
+              onChange={e => setForm({ ...form, routeId: e.target.value })}
+              className="h-10 rounded-xl border border-input bg-background px-3 text-sm"
+            >
+              <option value="">No Route Assigned</option>
+              {routes.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+            
+            <select
+              value={form.status}
+              onChange={e => setForm({ ...form, status: e.target.value })}
+              className="h-10 rounded-xl border border-input bg-background px-3 text-sm"
+            >
+              <option value="active">Active</option>
+              <option value="maintenance">Maintenance</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+
           <Button onClick={handleSave} className="w-full rounded-xl" disabled={createBus.isPending || updateBus.isPending}>
-            {(createBus.isPending || updateBus.isPending) ? 'Saving...' : 'Save'}
+            {(createBus.isPending || updateBus.isPending) ? 'Saving...' : 'Save Bus Configuration'}
           </Button>
         </motion.div>
       )}
@@ -111,6 +148,7 @@ export default function AdminBuses() {
             </div>
             <div className="space-y-2">
               <div className="text-xs text-muted-foreground space-y-1">
+                <p>Route: <span className="font-semibold text-primary">{routes.find(r => r.id === bus.routeId)?.name || 'Unassigned'}</span></p>
                 <p>Capacity: {bus.capacity} seats</p>
                 <p>Students: <span className="font-semibold">{bus.studentCount || 0}</span></p>
               </div>

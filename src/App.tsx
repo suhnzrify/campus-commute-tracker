@@ -38,8 +38,13 @@ function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: 
   return <AppLayout>{children}</AppLayout>;
 }
 
+import { useNativeNotifications } from "@/hooks/useNativeNotifications";
+
 function AppRoutes() {
   const { isAuthenticated, user, isInitializing } = useAuth();
+  
+  // Register the global native notification listener
+  useNativeNotifications();
 
   if (isInitializing) return null;
 

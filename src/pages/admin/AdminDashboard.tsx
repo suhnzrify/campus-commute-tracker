@@ -3,7 +3,7 @@ import { Bus, Users, Truck, AlertTriangle, Activity, Clock, MapPin, RefreshCw } 
 import { Button } from '@/components/ui/button';
 import MapView from '@/components/MapView';
 
-import { useBuses } from '@/hooks/useBuses';
+import { useBuses, useBusLocation } from '@/hooks/useBuses';
 import { useDrivers } from '@/hooks/useDrivers';
 import { useStudents } from '@/hooks/useStudents';
 import { useRoutes } from '@/hooks/useRoutes';
@@ -20,6 +20,10 @@ export default function AdminDashboard() {
   const { data: students = [], isLoading: loadingStudents, refetch: refetchStudents } = useStudents();
   const { data: routes = [], isLoading: loadingRoutes, refetch: refetchRoutes } = useRoutes();
   const { data: notifications = [], refetch: refetchNotifications } = useNotifications('ALL');
+  
+  // Find which bus is actually active to show on map
+  const activeBus = buses.find(b => b.status === 'active') || buses[0];
+  const { data: busLocation } = useBusLocation(activeBus?.id);
 
   const handleRefresh = () => {
     refetchBuses();
@@ -131,7 +135,7 @@ export default function AdminDashboard() {
             </h2>
             {route ? (
               <MapView
-                busLocation={activeDriver?.location}
+                busLocation={busLocation}
                 stops={route.stops}
                 height="350px"
               />

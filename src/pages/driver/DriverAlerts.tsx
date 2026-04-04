@@ -23,7 +23,7 @@ export default function DriverAlerts() {
   const targetBusId = currentDriver?.assignedBusId || 'ALL';
 
   const sendMutation = useSendNotification();
-  const { data: recentNotifications = [] } = useNotifications(targetBusId);
+  const { data: recentNotifications = [], isLoading } = useNotifications(targetBusId);
 
   const sendAlert = (label: string, type: 'info' | 'warning' | 'emergency' = 'info') => {
     sendMutation.mutate({
@@ -85,20 +85,28 @@ export default function DriverAlerts() {
       </div>
 
       <div className="glass-card rounded-xl p-4">
-        <h3 className="font-display font-semibold mb-3">Recent Notifications</h3>
+        <h3 className="font-display font-semibold mb-3 flex justify-between items-center">
+          Recent Notifications
+          {isLoading && <span className="text-[10px] text-muted-foreground animate-pulse font-normal">Syncing...</span>}
+        </h3>
         <div className="space-y-2">
-          {recentNotifications.length > 0 ? recentNotifications.map(n => (
+          {!isLoading && recentNotifications.length > 0 ? recentNotifications.map(n => (
             <div key={n.id} className="p-3 rounded-lg bg-muted text-sm border border-border">
               <div className="flex items-center gap-2 mb-1">
                 <span className={`w-2 h-2 rounded-full ${
                   n.type === 'emergency' ? 'bg-destructive' : n.type === 'warning' ? 'bg-warning' : 'bg-info'
                 }`} />
-                <span className="font-semibold">{n.title}</span>
-                <span className="text-[10px] text-muted-foreground ml-auto">{new Date(n.timestamp).toLocaleTimeString()}</span>
+                <span className="font-semibold text-xs">{n.title}</span>
+                <span className="text-[9px] text-muted-foreground ml-auto">{new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
-              <p className="text-muted-foreground text-xs">{n.message}</p>
+              <p className="text-muted-foreground text-xs leading-relaxed">{n.message}</p>
             </div>
-          )) : (
+          )) : isLoading ? (
+            <div className="py-8 text-center bg-muted/30 rounded-lg">
+               <div className="w-5 h-5 border-2 border-primary border-t-transparent animate-spin mx-auto mb-2 rounded-full" />
+               <p className="text-[10px] text-muted-foreground">Loading feed...</p>
+            </div>
+          ) : (
             <div className="p-4 text-center text-sm text-muted-foreground">No recent notifications</div>
           )}
         </div>

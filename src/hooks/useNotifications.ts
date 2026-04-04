@@ -14,14 +14,20 @@ export interface Notification {
 // const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
 export function useNotifications(busId?: string) {
+  const normalizedBusId = (busId && busId.trim()) ? busId.trim() : 'ALL';
+  
   return useQuery({
-    queryKey: ['notifications', busId],
+    queryKey: ['notifications', normalizedBusId],
     queryFn: async (): Promise<Notification[]> => {
-      const url = busId 
-        ? `${API_URL}/notifications?busId=${encodeURIComponent(busId)}` 
-        : `${API_URL}/notifications`;
+      const url = `${API_URL}/notifications?busId=${encodeURIComponent(normalizedBusId)}`;
+      console.log(`📡 Fetching notifications for: ${normalizedBusId}`);
+      
       const res = await fetch(url);
-      if (!res.ok) throw new Error('Failed to fetch notifications');
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error(`❌ Notification fetch failed (${res.status}):`, errorText);
+        throw new Error('Failed to fetch notifications');
+      }
       return res.json();
     },
     refetchInterval: 10000, 
