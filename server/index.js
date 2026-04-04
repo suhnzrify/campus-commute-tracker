@@ -25,15 +25,19 @@ function generateOTP() {
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 587,
-  secure: false, // Port 587 is STARTTLS, so secure must be false
+  secure: false, // Port 587 is STARTTLS
+  requireTLS: true, // Force STARTTLS
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
   tls: {
-    rejectUnauthorized: false, // Ensure connectivity in restricted environments
-    family: 4 // Force IPv4 to avoid IPv6 connection issues on Render
+    rejectUnauthorized: false,
+    family: 4 // Force IPv4 for Render compatibility
   },
+  connectionTimeout: 10000, // 10 seconds
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
 });
 
 // --- Basic Routes ---
