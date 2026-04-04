@@ -23,10 +23,16 @@ function generateOTP() {
 
 // --- EMAIL TRANSPORTER ---
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // Port 587 is STARTTLS, so secure must be false
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
+  },
+  tls: {
+    rejectUnauthorized: false, // Ensure connectivity in restricted environments
+    family: 4 // Force IPv4 to avoid IPv6 connection issues on Render
   },
 });
 
