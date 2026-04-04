@@ -21,6 +21,15 @@ function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+// --- EMAIL TRANSPORTER ---
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
+
 // --- Basic Routes ---
 app.get('/', (_req, res) => {
   res.json({
@@ -45,11 +54,37 @@ app.post('/api/auth/request-otp', async (req, res) => {
 
     const otp = generateOTP();
     const expiresAt = Date.now() + 5 * 60 * 1000;
-    console.log('\n\x1b[32m[LOGIN REQUEST]\x1b[0m OTP for', email, 'is:', otp, '\n');
+    
+    // Log for debugging (but secure transmission is via email)
+    console.log('\n\x1b[32m[LOGIN REQUEST]\x1b[0m Sending OTP to', email, '\n');
+    
+    const mailOptions = {
+      from: `"LBS Bus Tracker" <${process.env.SMTP_USER}>`,
+      to: email,
+      subject: 'OTP for Campus Commute Tracker Login',
+      text: `Your OTP is ${otp}. Please use this to login to the Campus Commute Tracker.`,
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd; border-radius: 8px; max-width: 500px; margin: auto;">
+          <h2 style="color: #007bff; text-align: center;">LBS Campus Commute</h2>
+          <p>Hello,</p>
+          <p>You requested a login code for the <strong>Campus Commute Tracker</strong>. Please use the following one-time password (OTP) to proceed:</p>
+          <div style="background-color: #f8f9fa; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #333; border-radius: 4px; margin: 20px 0;">
+            ${otp}
+          </div>
+          <p style="color: #666; font-size: 14px;">This code is valid for <strong>5 minutes</strong>. If you did not request this code, please ignore this email.</p>
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+          <p style="text-align: center; color: #999; font-size: 12px;">© 2026 LBS Campus Commute Tracker</p>
+        </div>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    
     otpCache.set(email.toLowerCase(), { otp, expiresAt });
-    res.json({ success: true, otp });
+    res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: 'Auth failed.' });
+    console.error('Email sending error:', err);
+    res.status(500).json({ error: 'Failed to send OTP email.' });
   }
 });
 
