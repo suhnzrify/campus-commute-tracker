@@ -8,7 +8,12 @@ import { hashPassword } from './auth.js';
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors({ origin: true, credentials: true }));
+// Optimized CORS for Production (Allows specific origins or defaults to true for dev)
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || true;
+app.use(cors({ 
+  origin: ALLOWED_ORIGIN, 
+  credentials: true 
+}));
 app.use(express.json());
 
 const otpCache = new Map();
