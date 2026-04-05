@@ -7,10 +7,10 @@ import { hashPassword } from './auth.js';
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// Set this to '*' in Render Env Vars for initial testing, then your frontend URL
-const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || true;
+// --- MIDDLEWARE ---
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
 app.use(cors({
-  origin: ALLOWED_ORIGIN,
+  origin: ALLOWED_ORIGIN === '*' ? true : ALLOWED_ORIGIN,
   credentials: true
 }));
 app.use(express.json());
@@ -194,6 +194,21 @@ app.delete('/api/buses/:id', async (req, res) => {
   res.json({ success: true });
 });
 
+app.get('/api/buses/:id/students', async (req, res) => {
+  const students = await db.prepare('SELECT * FROM students WHERE assigned_bus_id = ?').all(req.params.id);
+  res.json(students);
+});
+
+app.put('/api/buses/:id/assign-students', async (req, res) => {
+  const busId = req.params.id;
+  const { studentIds } = req.body;
+  await db.prepare('UPDATE students SET assigned_bus_id = "" WHERE assigned_bus_id = ?').run(busId);
+  for (const sid of studentIds) {
+    await db.prepare('UPDATE students SET assigned_bus_id = ? WHERE id = ?').run([busId, sid]);
+  }
+  res.json({ success: true });
+});
+
 // --- DRIVERS & STUDENTS ---
 app.get('/api/drivers', async (_req, res) => {
   const drivers = await db.prepare('SELECT * FROM drivers').all();
@@ -210,6 +225,17 @@ app.post('/api/drivers', async (req, res) => {
   res.json({ id, name, phone, email, assignedBusId, isOnTrip: false });
 });
 
+app.put('/api/drivers/:id', async (req, res) => {
+  const { name, phone, email, assignedBusId, isOnTrip } = req.body;
+  await db.prepare('UPDATE drivers SET name = ?, phone = ?, email = ?, assigned_bus_id = ?, is_on_trip = ? WHERE id = ?').run([name, phone, email, assignedBusId, isOnTrip ? 1 : 0, req.params.id]);
+  res.json({ success: true });
+});
+
+app.delete('/api/drivers/:id', async (req, res) => {
+  await db.prepare('DELETE FROM drivers WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
 app.get('/api/students', async (_req, res) => {
   const students = await db.prepare('SELECT * FROM students').all();
   res.json(students);
@@ -223,6 +249,12 @@ app.post('/api/students', async (req, res) => {
     await db.query('INSERT INTO users (id, email, password_hash, role, entity_id, email_verified) VALUES ($1, $2, $3, $4, $5, 1) ON CONFLICT (email) DO NOTHING', [`u_${id}`, email.toLowerCase(), 'PROTECTED', 'student', id]);
   }
   res.json({ id, name, registerNumber, phone, email, assignedBusId });
+});
+
+app.put('/api/students/:id', async (req, res) => {
+  const { name, registerNumber, phone, email, assigned_bus_id, class: cls, semester, admission_year, pickup_stop_id, drop_stop_id } = req.body;
+  await db.prepare('UPDATE students SET name = ?, register_number = ?, phone = ?, email = ?, assigned_bus_id = ?, class = ?, semester = ?, admission_year = ?, pickup_stop_id = ?, drop_stop_id = ? WHERE id = ?').run([name, registerNumber, phone, email, assigned_bus_id, cls, semester, admission_year, pickup_stop_id, drop_stop_id, req.params.id]);
+  res.json({ success: true });
 });
 
 app.delete('/api/students/:id', async (req, res) => {
