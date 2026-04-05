@@ -57,7 +57,9 @@ export function useSendNotification() {
         try {
           const errData = await res.json();
           errStr = errData.error || errStr;
-        } catch {}
+        } catch {
+          // Fallback to default error message if JSON parsing fails
+        }
         throw new Error(errStr);
       }
       return res.json();

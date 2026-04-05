@@ -7,7 +7,7 @@ import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import { BusStop } from '@/lib/mockData';
 
 // Fix leaflet default marker icons
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+delete (L.Icon.Default.prototype as L.Icon.Default & { _getIconUrl?: unknown })._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
@@ -60,7 +60,7 @@ function RoutingMachine({ stops }: { stops: BusStop[] }) {
 
     const routingControl = L.Routing.control({
       plan: new L.Routing.Plan(waypoints, {
-        createMarker: () => null as any
+        createMarker: () => null as unknown as L.Marker
       }),
       lineOptions: {
         styles: [{ color: 'hsl(217 91% 50%)', weight: 4, opacity: 0.7 }],

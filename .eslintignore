@@ -1,0 +1,12 @@
+# Ignore build artifacts
+dist
+android
+node_modules
+
+# Ignore temporary/old files
+server/index_old.js
+lint-results.txt
+lint-results-utf8.txt
+lint-full.txt
+lint-final.txt
+lint-final-warnings.txt

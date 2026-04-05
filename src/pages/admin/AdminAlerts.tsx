@@ -74,7 +74,7 @@ export default function AdminAlerts() {
                <select 
                  className="w-full bg-background rounded-xl p-3 border border-border outline-none text-foreground"
                  value={type}
-                 onChange={e => setType(e.target.value as any)}
+                 onChange={e => setType(e.target.value as 'info' | 'warning' | 'emergency')}
                >
                  <option value="info">Info (Standard)</option>
                  <option value="warning">Warning (Important)</option>

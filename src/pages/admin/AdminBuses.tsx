@@ -38,12 +38,13 @@ export default function AdminBuses() {
           model: form.model, 
           capacity: Number(form.capacity),
           routeId: form.routeId,
-          status: form.status as any
+          status: form.status as 'active' | 'maintenance' | 'inactive'
         });
       }
       busesQuery.refetch();
-    } catch (err: any) {
-      setError(err.message || 'Failed to save bus.');
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to save bus.';
+      setError(errorMsg);
       return;
     }
     setShowForm(false);

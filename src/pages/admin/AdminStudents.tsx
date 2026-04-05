@@ -67,7 +67,7 @@ export default function AdminStudents() {
       if (editing) {
         await updateStudent.mutateAsync({ id: editing.id, ...form });
       } else {
-        await createStudent.mutateAsync(form as any);
+        await createStudent.mutateAsync(form as Omit<Student, 'id'>);
       }
       refetchStudents();
     } catch {

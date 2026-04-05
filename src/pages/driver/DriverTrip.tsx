@@ -20,6 +20,7 @@ import { useNotifications, useSendNotification } from '@/hooks/useNotifications'
 import { useAuth } from '@/lib/authContext';
 import { API_URL } from '@/lib/api';
 import { Geolocation } from '@capacitor/geolocation';
+import type { Student } from '@/lib/mockData';
 
 export default function DriverTrip() {
   const { user } = useAuth();
@@ -424,7 +425,7 @@ export default function DriverTrip() {
              {students.length === 0 ? (
                <p className="text-center text-muted-foreground text-sm italic py-6">No students assigned up for this segment.</p>
              ) : (
-                students.map((st: any) => (
+                students.map((st: Student) => (
                   <div key={st.id} className="flex justify-between items-center group p-3 bg-background/50 rounded-xl border border-border/30 hover:border-primary/30 transition-colors">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">

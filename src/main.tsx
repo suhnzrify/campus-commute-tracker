@@ -5,8 +5,8 @@ import "./index.css";
 // Intercept all network fetches to forcefully bypass Tunnel warning pages natively in Mobile App builds.
 const originalFetch = window.fetch;
 window.fetch = async (...args) => {
-  let [resource, config] = args;
-  if (!config) config = {};
+  const resource = args[0];
+  const config = args[1] || {};
   if (!config.headers) config.headers = {};
   config.headers = {
     ...config.headers,
