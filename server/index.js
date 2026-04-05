@@ -22,28 +22,25 @@ function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// --- EMAIL TRANSPORTER (FINAL RENDER CONFIG) ---
+// --- EMAIL TRANSPORTER (DEFINITIVE RENDER FIX) ---
+// Using hardcoded Gmail IPv4 (192.178.211.109) to bypass Render DNS/IPv6 issues.
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
+  host: '192.178.211.109',
   port: 587,
   secure: false, // STARTTLS
   requireTLS: true,
-  pool: false, // Disabled pooling for direct connection
-  family: 4, // Force IPv4
-  lookup: (hostname, options, callback) => {
-    dns.lookup(hostname, { family: 4 }, callback);
-  },
+  pool: false, // Single connection for reliability
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
   tls: {
     rejectUnauthorized: false,
-    servername: 'smtp.gmail.com'
+    servername: 'smtp.gmail.com' // Crucial for certificate validation
   },
-  connectionTimeout: 40000,
-  greetingTimeout: 40000,
-  socketTimeout: 40000,
+  connectionTimeout: 60000,
+  greetingTimeout: 60000,
+  socketTimeout: 60000,
 });
 
 // Verification Log
@@ -51,7 +48,7 @@ transporter.verify((error) => {
   if (error) {
     console.log('⚠️ Mail Server Error:', error.message);
   } else {
-    console.log('✅ Mail Server Connected Successfully');
+    console.log('✅ Mail Server Connected Successfully (IPv4 Direct)');
   }
 });
 
