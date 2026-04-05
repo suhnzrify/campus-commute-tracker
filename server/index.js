@@ -28,10 +28,8 @@ const transporter = nodemailer.createTransport({
   port: 587,
   secure: false, // STARTTLS
   requireTLS: true,
-  pool: true,
-  maxConnections: 1,
+  pool: false, // Disabled pooling for direct connection
   family: 4, // Force IPv4
-  localAddress: '0.0.0.0', // Explicitly force local IPv4
   lookup: (hostname, options, callback) => {
     dns.lookup(hostname, { family: 4 }, callback);
   },
