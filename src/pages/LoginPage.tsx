@@ -49,12 +49,14 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      // We try the request, but we ALWAYS move to the OTP step for the demo
-      await requestOtp(selectedRole, email);
-      setStep('otp');
-    } catch (err) {
-      console.warn("Network issue, forcing OTP step for bypass demo.");
-      setStep('otp');
+      const result = await requestOtp(selectedRole, email);
+      if (result.success) {
+        setStep('otp');
+      } else {
+        setError(result.error || 'Failed to send OTP.');
+      }
+    } catch {
+      setError('Cannot reach server. Is the backend running?');
     } finally {
       setLoading(false);
     }
@@ -66,8 +68,6 @@ export default function LoginPage() {
 
     if (otp.length !== 6) return setError('Please enter the 6-digit OTP code.');
 
-    // Server will handle the 000000 master code natively
-
     setLoading(true);
     try {
       const result = await verifyOtp(selectedRole, email, otp);
@@ -78,8 +78,8 @@ export default function LoginPage() {
       } else {
         setError(result.error || 'Invalid OTP code.');
       }
-    } catch (err) {
-      setError('Network error. Use master code 000000 for demo.');
+    } catch {
+      setError('Network error while verifying OTP.');
     } finally {
       setLoading(false);
     }
@@ -171,9 +171,9 @@ export default function LoginPage() {
                 
                 <Shield className="w-12 h-12 text-primary mb-4" />
                 
-                <h2 className="text-xl font-bold mb-2">Check your Terminal</h2>
+                <h2 className="text-xl font-bold mb-2">Enter OTP</h2>
                 <p className="text-sm text-muted-foreground text-center mb-6">
-                  We've simulated sending a securely generated 6-digit OTP to <br/><span className="font-semibold text-foreground">{email}</span>.
+                  We sent a securely generated 6-digit OTP to <br/><span className="font-semibold text-foreground">{email}</span>.
                 </p>
                 
                 <form onSubmit={handleVerifyOTP} className="w-full space-y-6 flex flex-col items-center">
@@ -204,7 +204,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-xs text-center text-muted-foreground mt-4">
-          Check your backend terminal (Render Dashboard) for your OTP pins.
+          If the OTP email does not arrive, verify SMTP settings in backend environment variables.
         </p>
 
       </motion.div>

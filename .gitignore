@@ -11,6 +11,20 @@ node_modules
 dist
 dist-ssr
 *.local
+coverage
+.nyc_output
+.cache
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Local build and diagnostic artifacts
+build*.txt
+check_output.txt
+lint-*.txt
+out.json
 
 # Editor directories and files
 .vscode/*
