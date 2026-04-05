@@ -70,9 +70,12 @@ app.get('/api/health', (_req, res) => {
 app.post('/api/auth/request-otp', async (req, res) => {
   try {
     const { email } = req.body || {};
-    if (!email) return res.status(400).json({ error: 'Email required.' });
+    const normalizedEmail = String(email || '').toLowerCase().trim();
+    
+    if (!normalizedEmail) {
+      return res.status(400).json({ error: 'Email is required.' });
+    }
 
-    const normalizedEmail = email.toLowerCase().trim();
     const userRow = await db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(normalizedEmail);
 
     console.log(`\n\x1b[32m[LOGIN REQUEST]\x1b[0m OTP Request for: ${normalizedEmail}`);
@@ -127,6 +130,10 @@ app.post('/api/auth/verify-otp', async (req, res) => {
 
     otpCache.delete(emailStr);
     const userRow = await db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(emailStr);
+
+    if (!userRow) {
+      return res.status(404).json({ error: 'User account not found.' });
+    }
 
     let name = 'User';
     if (userRow.role === 'driver' && userRow.entityId) {

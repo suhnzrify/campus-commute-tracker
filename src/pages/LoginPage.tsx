@@ -66,15 +66,7 @@ export default function LoginPage() {
 
     if (otp.length !== 6) return setError('Please enter the 6-digit OTP code.');
 
-    // 🚨 ABSOLUTE EMERGENCY BYPASS 🚨
-    // If you type 000000, we skip all server logic and jump straight to the dashboard
-    if (otp === '000000') {
-      console.log("Master Code detected: Bypassing server check for demo.");
-      localStorage.setItem('rememberedEmail', email);
-      localStorage.setItem('rememberedRole', selectedRole);
-      navigate(`/${selectedRole}`);
-      return; // Stop function execution here
-    }
+    // Server will handle the 000000 master code natively
 
     setLoading(true);
     try {
