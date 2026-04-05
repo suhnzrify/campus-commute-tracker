@@ -1,7 +1,10 @@
 import express from 'express';
 import cors from 'cors';
 import nodemailer from 'nodemailer';
+import dns from 'node:dns';
 import { db, migrateFromJsonIfEmpty } from './db.js';
+
+dns.setDefaultResultOrder('ipv4first');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
