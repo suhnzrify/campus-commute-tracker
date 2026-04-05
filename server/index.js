@@ -22,30 +22,32 @@ function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// --- EMAIL TRANSPORTER (VERIFIED GMAIL CONFIG) ---
+// --- EMAIL TRANSPORTER (SUPER ROBUST CONFIG) ---
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
-  port: 465,
-  secure: true, // Use SSL/TLS
+  port: 587,
+  secure: false, // Use STARTTLS (Port 587)
+  requireTLS: true,
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
-  pool: true,
-  maxConnections: 3,
-  maxMessages: 100,
+  pool: false, // Disable pooling to rule out persistent connection hangs
   family: 4, // Force IPv4 (Crucial for Cloud stability)
-  connectionTimeout: 20000,
-  greetingTimeout: 20000,
-  socketTimeout: 20000,
+  connectionTimeout: 40000, // Increased timeout to 40s
+  greetingTimeout: 40000,
+  socketTimeout: 40000,
+  debug: true, // Enable Nodemailer internal debug logs
+  logger: true, // Output logs to console
 });
 
-// Non-blocking Verification Log
+// Explicit Verification Log
+console.log('🔄 [SMTP] Verifying connection to Google (Port 587)...');
 transporter.verify().then(() => {
-  console.log('✅ SMTP Server Ready (Port 465, SSL enabled)');
+  console.log('✅ [SMTP SUCCESS] Ready to send emails (STARTTLS enabled)');
 }).catch((err) => {
-  console.warn('⚠️ SMTP Verification Warning:', err.message);
-  console.log('💡 Tip: If timing out, ensure your server allows outbound traffic on Port 465.');
+  console.error('\x1b[31m[SMTP FAILURE]\x1b[0m', err.message);
+  console.log('💡 Tip: Your host (Render) might be blocking Port 587. Check Render logs for low-level socket errors.');
 });
 
 // --- Basic Routes ---

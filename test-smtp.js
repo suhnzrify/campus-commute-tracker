@@ -11,28 +11,27 @@ console.log('🔑 Pass Length:', testPass?.length);
 
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
+  port: 587,
+  secure: false, // Use STARTTLS (Port 587)
+  requireTLS: true,
   auth: {
     user: testUser,
     pass: testPass,
   },
-  pool: true,
-  maxConnections: 3,
-  maxMessages: 100,
+  pool: false, 
   family: 4, // Force IPv4
-  connectionTimeout: 20000,
-  greetingTimeout: 20000,
-  socketTimeout: 20000,
+  connectionTimeout: 40000,
+  greetingTimeout: 40000,
+  socketTimeout: 40000,
   debug: true,
   logger: true
 });
 
 async function runTest() {
   try {
-    console.log('\n📡 STAGE 2: Verifying connection...');
+    console.log('\n📡 STAGE 2: Verifying connection (STARTTLS)...');
     await transporter.verify();
-    console.log('✅ Connection verified!');
+    console.log('✅ [STAGE 2 SUCCESS] Connection verified!');
 
     console.log('\n📧 STAGE 3: Sending Test Email...');
     const info = await transporter.sendMail({
