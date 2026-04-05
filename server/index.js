@@ -31,6 +31,7 @@ const transporter = nodemailer.createTransport({
   pool: true,
   maxConnections: 1,
   family: 4, // Force IPv4
+  localAddress: '0.0.0.0', // Explicitly force local IPv4
   lookup: (hostname, options, callback) => {
     dns.lookup(hostname, { family: 4 }, callback);
   },
@@ -42,9 +43,9 @@ const transporter = nodemailer.createTransport({
     rejectUnauthorized: false,
     servername: 'smtp.gmail.com'
   },
-  connectionTimeout: 30000,
-  greetingTimeout: 30000,
-  socketTimeout: 30000,
+  connectionTimeout: 40000,
+  greetingTimeout: 40000,
+  socketTimeout: 40000,
 });
 
 // Verification Log
