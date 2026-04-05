@@ -17,9 +17,22 @@ cloudflared.stderr.on('data', (data) => {
         const url = match[0];
         console.log(`✅ Tunnel established securely at: ${url}`);
         
-        // 1. Inject the internet URL into the frontend
+        // 1. Inject the internet URL into the frontend environment
         console.log("⚙️  Configuring Mobile Environment via .env...");
-        fs.writeFileSync('.env', `VITE_API_URL=${url}/api\n`);
+        let envContent = '';
+        try {
+            if (fs.existsSync('.env')) {
+                envContent = fs.readFileSync('.env', 'utf8');
+            }
+        } catch(e) {}
+
+        const apiUrl = `${url}/api`;
+        // Replace or Append VITE_API_URL and VITE_API_BASE_URL
+        const lines = envContent.split('\n').filter(l => !l.startsWith('VITE_API_URL=') && !l.startsWith('VITE_API_BASE_URL='));
+        lines.push(`VITE_API_URL=${apiUrl}`);
+        lines.push(`VITE_API_BASE_URL=${apiUrl}`);
+        
+        fs.writeFileSync('.env', lines.join('\n') + '\n');
         
         // 2. Build the exact Native WebView distribution
         console.log("📦 Bundling React into Raw Native binaries...");
