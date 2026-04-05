@@ -4,8 +4,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Bus, LogOut, Bell, Menu, X, LayoutDashboard, Users, Truck, MapPin, Route, Play, Map, Settings, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNotifications } from '@/hooks/useNotifications';
-import { useStudents } from '@/hooks/useStudents';
-import { useDrivers } from '@/hooks/useDrivers';
 
 interface NavItem {
   label: string;
@@ -45,18 +43,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
-  const { data: students = [] } = useStudents();
-  const { data: drivers = [] } = useDrivers();
-
-  let targetBusId = 'ALL';
-  if (user?.role === 'student') {
-    const s = students.find(x => x.id === user.entityId);
-    if (s?.assignedBusId) targetBusId = s.assignedBusId;
-  } else if (user?.role === 'driver') {
-    const d = drivers.find(x => x.id === user.entityId);
-    if (d?.assignedBusId) targetBusId = d.assignedBusId;
-  }
-
+  const targetBusId = user?.busId || 'ALL';
   const { data: notifications = [] } = useNotifications(targetBusId);
   const unreadCount = notifications.length;
 

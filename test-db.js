@@ -19,8 +19,11 @@ const pool = new Pool({
 try {
   const client = await pool.connect();
   console.log('✅ Success! Connected to Supabase.');
-  const res = await client.query('SELECT NOW()');
-  console.log('🕒 DB Time:', res.rows[0].now);
+  const timeRes = await client.query('SELECT NOW()');
+  console.log('🕒 DB Time:', timeRes.rows[0].now);
+
+  const students = await client.query('SELECT name, email, assigned_bus_id FROM students LIMIT 5');
+  console.log('🎓 Students:', JSON.stringify(students.rows, null, 2));
   client.release();
   process.exit(0);
 } catch (err) {

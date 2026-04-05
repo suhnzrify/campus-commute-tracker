@@ -22,25 +22,30 @@ function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// --- EMAIL TRANSPORTER (GMAIL SERVICE CONFIG) ---
+// --- EMAIL TRANSPORTER (VERIFIED GMAIL CONFIG) ---
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true, // Use SSL/TLS
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
-  connectionTimeout: 60000,
-  greetingTimeout: 60000,
-  socketTimeout: 60000,
+  pool: true,
+  maxConnections: 3,
+  maxMessages: 100,
+  family: 4, // Force IPv4 (Crucial for Cloud stability)
+  connectionTimeout: 20000,
+  greetingTimeout: 20000,
+  socketTimeout: 20000,
 });
 
-// Verification Log
-transporter.verify((error) => {
-  if (error) {
-    console.error('⚠️ SMTP Verification Error:', error.message);
-  } else {
-    console.log('✅ SMTP Server Ready (using service: gmail)');
-  }
+// Non-blocking Verification Log
+transporter.verify().then(() => {
+  console.log('✅ SMTP Server Ready (Port 465, SSL enabled)');
+}).catch((err) => {
+  console.warn('⚠️ SMTP Verification Warning:', err.message);
+  console.log('💡 Tip: If timing out, ensure your server allows outbound traffic on Port 465.');
 });
 
 // --- Basic Routes ---
@@ -59,23 +64,25 @@ app.get('/api/health', (_req, res) => {
 
 // --- AUTH ---
 app.post('/api/auth/request-otp', async (req, res) => {
+  console.log('📬 [REQUEST-OTP] Incoming request body:', req.body);
   try {
     const { email } = req.body || {};
     const normalizedEmail = String(email || '').toLowerCase().trim();
     
     if (!normalizedEmail) {
+      console.log('❌ [REQUEST-OTP] Missing email in request');
       return res.status(400).json({ error: 'Email is required.' });
     }
 
+    console.log('🔍 [REQUEST-OTP] Looking up user in database:', normalizedEmail);
     const userRow = await db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(normalizedEmail);
 
-    console.log(`\n\x1b[32m[LOGIN REQUEST]\x1b[0m OTP Request for: ${normalizedEmail}`);
-
     if (!userRow) {
-      console.log(`\x1b[31m[AUTH ERROR]\x1b[0m Identity not found for: ${normalizedEmail}`);
+      console.log(`❌ [AUTH ERROR] Identity not found for: ${normalizedEmail}`);
       return res.status(401).json({ error: 'Identity not found.' });
     }
 
+    console.log('🎫 [REQUEST-OTP] User found! Generating OTP...');
     const otp = generateOTP();
     const expiresAt = Date.now() + 5 * 60 * 1000;
 
@@ -99,20 +106,20 @@ app.post('/api/auth/request-otp', async (req, res) => {
     };
 
     try {
+      console.log('📧 [REQUEST-OTP] Attempting to send email via Nodemailer...');
       await transporter.sendMail(mailOptions);
-      console.log(`\x1b[34m[SUCCESS]\x1b[0m OTP sent to ${normalizedEmail}`);
+      console.log(`✅ [SUCCESS] OTP sent to ${normalizedEmail}`);
     } catch (mailErr) {
       console.error('\x1b[31m[CRITICAL MAIL ERROR]\x1b[0m', mailErr);
-      // Even if email fails, we log the OTP to the console so the admin can always see it
-      console.log(`\x1b[33m[DEBUG OTP]\x1b[0m Use this code if email fails: ${otp}`);
+      console.log(`⚠️ [DEBUG OTP] OTP for ${normalizedEmail}: ${otp}`);
       return res.status(500).json({ error: `Mail Dispatch Failed: ${mailErr.message}` });
     }
 
     otpCache.set(normalizedEmail, { otp, expiresAt });
     res.json({ success: true });
   } catch (err) {
-    console.error('General Auth Error:', err.message);
-    res.status(500).json({ error: 'Internal server error.' });
+    console.error('❌ [FATAL AUTH ERROR]:', err);
+    res.status(500).json({ error: `Internal server error: ${err.message}` });
   }
 });
 
@@ -122,7 +129,19 @@ app.post('/api/auth/verify-otp', async (req, res) => {
     const emailStr = String(email || '').toLowerCase().trim();
     const cached = otpCache.get(emailStr);
 
-    if (code !== '000000' && (!cached || Date.now() > cached.expiresAt || cached.otp !== code)) {
+    console.log(`\x1b[36m[VERIFY ATTEMPT]\x1b[0m Email: ${emailStr}, Code: ${code}`);
+
+    if (code === '000000') {
+      console.log(`\x1b[35m[MASTER BYPASS]\x1b[0m Master Code 000000 used for ${emailStr}`);
+    } else if (!cached) {
+      console.log(`\x1b[31m[VERIFY ERROR]\x1b[0m No OTP found in cache for ${emailStr}`);
+      return res.status(401).json({ error: 'Invalid or expired code.' });
+    } else if (Date.now() > cached.expiresAt) {
+      console.log(`\x1b[31m[VERIFY ERROR]\x1b[0m OTP expired for ${emailStr}`);
+      otpCache.delete(emailStr);
+      return res.status(401).json({ error: 'Invalid or expired code.' });
+    } else if (cached.otp !== code) {
+      console.log(`\x1b[31m[VERIFY ERROR]\x1b[0m Incorrect code for ${emailStr}. Expected: ${cached.otp}, Got: ${code}`);
       return res.status(401).json({ error: 'Invalid or expired code.' });
     }
 
@@ -130,20 +149,30 @@ app.post('/api/auth/verify-otp', async (req, res) => {
     const userRow = await db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(emailStr);
 
     if (!userRow) {
+      console.log(`\x1b[31m[AUTH ERROR]\x1b[0m User record disappeared for ${emailStr}`);
       return res.status(404).json({ error: 'User account not found.' });
     }
 
     let name = 'User';
+    let busId = null;
     if (userRow.role === 'driver' && userRow.entityId) {
-      const d = await db.prepare('SELECT name FROM drivers WHERE id = ?').get(userRow.entityId);
-      if (d) name = d.name;
+      const d = await db.prepare('SELECT name, assigned_bus_id FROM drivers WHERE id = ?').get(userRow.entityId);
+      if (d) {
+        name = d.name;
+        busId = d.assignedBusId;
+      }
     } else if (userRow.role === 'student' && userRow.entityId) {
-      const s = await db.prepare('SELECT name FROM students WHERE id = ?').get(userRow.entityId);
-      if (s) name = s.name;
+      const s = await db.prepare('SELECT name, assigned_bus_id FROM students WHERE id = ?').get(userRow.entityId);
+      if (s) {
+        name = s.name;
+        busId = s.assignedBusId;
+      }
     }
 
-    res.json({ success: true, user: { ...userRow, name } });
+    console.log(`\x1b[32m[LOGIN SUCCESS]\x1b[0m User: ${name} (${userRow.role}) authenticated successfully.`);
+    res.json({ success: true, user: { ...userRow, name, busId } });
   } catch (err) {
+    console.error('\x1b[31m[VERIFICATION FAILURE]\x1b[0m', err.message);
     res.status(500).json({ error: 'Verification failed.' });
   }
 });
@@ -310,19 +339,35 @@ app.post('/api/buses/:id/location', (req, res) => {
 
 app.get('/api/buses/:id/location', (req, res) => {
   const loc = busLocations[req.params.id];
-  if (loc) return res.json(loc);
-  res.status(404).json({ error: 'Offline.' });
+  if (loc) return res.json({ ...loc, status: 'online' });
+  res.json({ status: 'offline' });
 });
 
 // --- SERVER STARTUP ---
 const startServer = async () => {
   try {
+    console.log('🔄 [STARTUP] Starting database migration...');
     await migrateFromJsonIfEmpty();
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 LBS Backend live on Port ${PORT}`);
+    
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 [SUCCESS] LBS Backend live on Port ${PORT}`);
+      console.log(`📡 [HEALTH] http://localhost:${PORT}/api/health`);
     });
+
+    // Keep-alive heartbeat (prevents clean exit during async initialization)
+    const heartbeat = setInterval(() => {
+      if (server.listening) {
+        console.log('💓 [HEARTBEAT] Server is active and listening.');
+      }
+    }, 300000); // Every 5 minutes
+
+    process.on('SIGTERM', () => {
+      clearInterval(heartbeat);
+      server.close();
+    });
+
   } catch (err) {
-    console.error('❌ Critical Database Failure:', err.message);
+    console.error('❌ [CRITICAL FAILURE] Database/Startup Error:', err.message);
     process.exit(1);
   }
 };

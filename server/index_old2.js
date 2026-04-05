@@ -8,13 +8,20 @@ import { verifyPassword, hashPassword } from './auth.js';
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// --- Email Configuration (Nodemailer) ---
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
   auth: {
-    user: process.env.SMTP_USER, // adminlbscek@gmail.com
-    pass: process.env.SMTP_PASS, // your app password
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
   },
+  pool: true,
+  maxConnections: 3,
+  family: 4, // Force IPv4
+  connectionTimeout: 20000,
+  greetingTimeout: 20000,
+  socketTimeout: 20000,
 });
 
 app.use(cors());

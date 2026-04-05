@@ -54,9 +54,10 @@ export function useBusLocation(busId: string | undefined) {
     queryFn: async () => {
       const res = await fetch(`${API_URL}/buses/${busId}/location`);
 
-      if (res.status === 404) return null; // No location yet
       if (!res.ok) throw new Error('Failed to fetch bus location');
-      return res.json();
+      const data = await res.json();
+      if (data.status === 'offline') return null;
+      return data;
     },
     enabled: !!busId,
     refetchInterval: 3000,

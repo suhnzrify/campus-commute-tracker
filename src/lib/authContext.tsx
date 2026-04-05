@@ -12,6 +12,7 @@ export interface AuthUser {
   role: UserRole;
   email: string;
   entityId?: string;
+  busId?: string | null;
 }
 
 interface AuthContextType {
