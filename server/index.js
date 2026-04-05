@@ -9,6 +9,7 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 // Optimized CORS for Production (Allows specific origins or defaults to true for dev)
+// TIP: On Render, ensure your Frontend URL is set in the ALLOWED_ORIGIN env variable
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || true;
 app.use(cors({
   origin: ALLOWED_ORIGIN,
@@ -21,23 +22,22 @@ function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// --- EMAIL TRANSPORTER ---
+// --- EMAIL TRANSPORTER (FIXED FOR RENDER) ---
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
-  secure: true, // Port 587 is STARTTLS
-  requireTLS: true, // Force STARTTLS
+  secure: true,
+  family: 4, // CRITICAL: Moved to top-level to force IPv4 and fix ENETUNREACH
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
   tls: {
     rejectUnauthorized: false,
-    family: 4 // Force IPv4 for Render compatibility
   },
-  connectionTimeout: 10000, // 10 seconds
-  greetingTimeout: 10000,
-  socketTimeout: 10000,
+  connectionTimeout: 20000, // Increased to 20s for Render stability
+  greetingTimeout: 20000,
+  socketTimeout: 20000,
 });
 
 // --- Basic Routes ---
@@ -59,14 +59,20 @@ app.post('/api/auth/request-otp', async (req, res) => {
   try {
     const { email } = req.body || {};
     if (!email) return res.status(400).json({ error: 'Email required.' });
+
+    // Normalize email to lowercase for lookup
     const userRow = await db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(email.toLowerCase());
-    if (!userRow) return res.status(401).json({ error: 'Identity not found.' });
+
+    // LOGS: This will now show up if your Frontend is correctly pointing to this server
+    console.log('\n\x1b[32m[LOGIN REQUEST]\x1b[0m Attempting OTP for:', email, '\n');
+
+    if (!userRow) {
+      console.log('\x1b[31m[AUTH ERROR]\x1b[0m Identity not found for:', email);
+      return res.status(401).json({ error: 'Identity not found.' });
+    }
 
     const otp = generateOTP();
     const expiresAt = Date.now() + 5 * 60 * 1000;
-
-    // Log for debugging (but secure transmission is via email)
-    console.log('\n\x1b[32m[LOGIN REQUEST]\x1b[0m Sending OTP to', email, '\n');
 
     const mailOptions = {
       from: `"LBS Bus Tracker" <${process.env.SMTP_USER}>`,
@@ -89,6 +95,7 @@ app.post('/api/auth/request-otp', async (req, res) => {
     };
 
     await transporter.sendMail(mailOptions);
+    console.log('\x1b[34m[SUCCESS]\x1b[0m OTP sent to', email);
 
     otpCache.set(email.toLowerCase(), { otp, expiresAt });
     res.json({ success: true });
@@ -103,11 +110,15 @@ app.post('/api/auth/verify-otp', async (req, res) => {
     const { email, code } = req.body || {};
     const emailStr = String(email || '').toLowerCase();
     const cached = otpCache.get(emailStr);
+
+    // Master code '000000' for development/testing
     if (code !== '000000' && (!cached || Date.now() > cached.expiresAt || cached.otp !== code)) {
       return res.status(401).json({ error: 'Invalid code.' });
     }
+
     otpCache.delete(emailStr);
     const userRow = await db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(emailStr);
+
     let name = 'User';
     if (userRow.role === 'driver' && userRow.entityId) {
       const d = await db.prepare('SELECT name FROM drivers WHERE id = ?').get(userRow.entityId);
@@ -116,6 +127,7 @@ app.post('/api/auth/verify-otp', async (req, res) => {
       const s = await db.prepare('SELECT name FROM students WHERE id = ?').get(userRow.entityId);
       if (s) name = s.name;
     }
+
     res.json({ success: true, user: { ...userRow, name } });
   } catch (err) {
     res.status(500).json({ error: 'Verification failed.' });
@@ -301,4 +313,4 @@ const startServer = async () => {
   }
 };
 
-startServer();
+startServer();  
