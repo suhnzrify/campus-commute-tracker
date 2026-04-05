@@ -4,12 +4,10 @@ import nodemailer from 'nodemailer';
 import { db, migrateFromJsonIfEmpty } from './db.js';
 import { hashPassword } from './auth.js';
 
-// No manual dotenv.config() needed. We use Node --env-file flag.
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// Optimized CORS for Production (Allows specific origins or defaults to true for dev)
-// TIP: On Render, ensure your Frontend URL is set in the ALLOWED_ORIGIN env variable
+// Set this to '*' in Render Env Vars for initial testing, then your frontend URL
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || true;
 app.use(cors({
   origin: ALLOWED_ORIGIN,
@@ -22,20 +20,21 @@ function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// --- EMAIL TRANSPORTER (FIXED FOR RENDER) ---
+// --- EMAIL TRANSPORTER (ULTIMATE CLOUD CONFIG) ---
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
-  family: 4, // CRITICAL: Moved to top-level to force IPv4 and fix ENETUNREACH
+  port: 587,         // Port 587 is much more reliable on Render than 465
+  secure: false,      // Must be false for 587 (it uses STARTTLS)
+  family: 4,          // Forces IPv4 to prevent ENETUNREACH errors
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
   tls: {
-    rejectUnauthorized: false,
+    rejectUnauthorized: false, // Bypasses certificate issues in cloud containers
+    minVersion: 'TLSv1.2'
   },
-  connectionTimeout: 20000, // Increased to 20s for Render stability
+  connectionTimeout: 20000,
   greetingTimeout: 20000,
   socketTimeout: 20000,
 });
@@ -60,14 +59,15 @@ app.post('/api/auth/request-otp', async (req, res) => {
     const { email } = req.body || {};
     if (!email) return res.status(400).json({ error: 'Email required.' });
 
-    // Normalize email to lowercase for lookup
-    const userRow = await db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(email.toLowerCase());
+    const normalizedEmail = email.toLowerCase().trim();
 
-    // LOGS: This will now show up if your Frontend is correctly pointing to this server
-    console.log('\n\x1b[32m[LOGIN REQUEST]\x1b[0m Attempting OTP for:', email, '\n');
+    // Check if the user exists in the database
+    const userRow = await db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(normalizedEmail);
+
+    console.log(`\n\x1b[32m[LOGIN REQUEST]\x1b[0m Attempting OTP for: ${normalizedEmail}`);
 
     if (!userRow) {
-      console.log('\x1b[31m[AUTH ERROR]\x1b[0m Identity not found for:', email);
+      console.log(`\x1b[31m[AUTH ERROR]\x1b[0m ${normalizedEmail} not found in database.`);
       return res.status(401).json({ error: 'Identity not found.' });
     }
 
@@ -76,28 +76,25 @@ app.post('/api/auth/request-otp', async (req, res) => {
 
     const mailOptions = {
       from: `"LBS Bus Tracker" <${process.env.SMTP_USER}>`,
-      to: email,
+      to: normalizedEmail,
       subject: 'OTP for Campus Commute Tracker Login',
-      text: `Your OTP is ${otp}. Please use this to login to the Campus Commute Tracker.`,
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd; border-radius: 8px; max-width: 500px; margin: auto;">
           <h2 style="color: #007bff; text-align: center;">LBS Campus Commute</h2>
           <p>Hello,</p>
-          <p>You requested a login code for the <strong>Campus Commute Tracker</strong>. Please use the following one-time password (OTP) to proceed:</p>
+          <p>Your one-time password (OTP) for the <strong>Campus Commute Tracker</strong> is:</p>
           <div style="background-color: #f8f9fa; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #333; border-radius: 4px; margin: 20px 0;">
             ${otp}
           </div>
-          <p style="color: #666; font-size: 14px;">This code is valid for <strong>5 minutes</strong>. If you did not request this code, please ignore this email.</p>
-          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-          <p style="text-align: center; color: #999; font-size: 12px;">© 2026 LBS Campus Commute Tracker</p>
+          <p style="color: #666; font-size: 14px;">Valid for 5 minutes. If you didn't request this, ignore this email.</p>
         </div>
       `,
     };
 
     await transporter.sendMail(mailOptions);
-    console.log('\x1b[34m[SUCCESS]\x1b[0m OTP sent to', email);
+    console.log(`\x1b[34m[SUCCESS]\x1b[0m OTP sent to ${normalizedEmail}`);
 
-    otpCache.set(email.toLowerCase(), { otp, expiresAt });
+    otpCache.set(normalizedEmail, { otp, expiresAt });
     res.json({ success: true });
   } catch (err) {
     console.error('Email sending error:', err);
@@ -108,10 +105,9 @@ app.post('/api/auth/request-otp', async (req, res) => {
 app.post('/api/auth/verify-otp', async (req, res) => {
   try {
     const { email, code } = req.body || {};
-    const emailStr = String(email || '').toLowerCase();
+    const emailStr = String(email || '').toLowerCase().trim();
     const cached = otpCache.get(emailStr);
 
-    // Master code '000000' for development/testing
     if (code !== '000000' && (!cached || Date.now() > cached.expiresAt || cached.otp !== code)) {
       return res.status(401).json({ error: 'Invalid code.' });
     }
@@ -198,21 +194,6 @@ app.delete('/api/buses/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-app.get('/api/buses/:id/students', async (req, res) => {
-  const students = await db.prepare('SELECT * FROM students WHERE assigned_bus_id = ?').all(req.params.id);
-  res.json(students);
-});
-
-app.put('/api/buses/:id/assign-students', async (req, res) => {
-  const busId = req.params.id;
-  const { studentIds } = req.body;
-  await db.prepare('UPDATE students SET assigned_bus_id = "" WHERE assigned_bus_id = ?').run(busId);
-  for (const sid of studentIds) {
-    await db.prepare('UPDATE students SET assigned_bus_id = ? WHERE id = ?').run([busId, sid]);
-  }
-  res.json({ success: true });
-});
-
 // --- DRIVERS & STUDENTS ---
 app.get('/api/drivers', async (_req, res) => {
   const drivers = await db.prepare('SELECT * FROM drivers').all();
@@ -229,17 +210,6 @@ app.post('/api/drivers', async (req, res) => {
   res.json({ id, name, phone, email, assignedBusId, isOnTrip: false });
 });
 
-app.put('/api/drivers/:id', async (req, res) => {
-  const { name, phone, email, assignedBusId, isOnTrip } = req.body;
-  await db.prepare('UPDATE drivers SET name = ?, phone = ?, email = ?, assigned_bus_id = ?, is_on_trip = ? WHERE id = ?').run([name, phone, email, assignedBusId, isOnTrip ? 1 : 0, req.params.id]);
-  res.json({ success: true });
-});
-
-app.delete('/api/drivers/:id', async (req, res) => {
-  await db.prepare('DELETE FROM drivers WHERE id = ?').run(req.params.id);
-  res.json({ success: true });
-});
-
 app.get('/api/students', async (_req, res) => {
   const students = await db.prepare('SELECT * FROM students').all();
   res.json(students);
@@ -253,12 +223,6 @@ app.post('/api/students', async (req, res) => {
     await db.query('INSERT INTO users (id, email, password_hash, role, entity_id, email_verified) VALUES ($1, $2, $3, $4, $5, 1) ON CONFLICT (email) DO NOTHING', [`u_${id}`, email.toLowerCase(), 'PROTECTED', 'student', id]);
   }
   res.json({ id, name, registerNumber, phone, email, assignedBusId });
-});
-
-app.put('/api/students/:id', async (req, res) => {
-  const { name, registerNumber, phone, email, assigned_bus_id, class: cls, semester, admission_year, pickup_stop_id, drop_stop_id } = req.body;
-  await db.prepare('UPDATE students SET name = ?, register_number = ?, phone = ?, email = ?, assigned_bus_id = ?, class = ?, semester = ?, admission_year = ?, pickup_stop_id = ?, drop_stop_id = ? WHERE id = ?').run([name, registerNumber, phone, email, assigned_bus_id, cls, semester, admission_year, pickup_stop_id, drop_stop_id, req.params.id]);
-  res.json({ success: true });
 });
 
 app.delete('/api/students/:id', async (req, res) => {
