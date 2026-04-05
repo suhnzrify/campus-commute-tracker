@@ -31,6 +31,9 @@ const transporter = nodemailer.createTransport({
   pool: true,
   maxConnections: 1,
   family: 4, // Force IPv4
+  lookup: (hostname, options, callback) => {
+    dns.lookup(hostname, { family: 4 }, callback);
+  },
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
@@ -39,9 +42,9 @@ const transporter = nodemailer.createTransport({
     rejectUnauthorized: false,
     servername: 'smtp.gmail.com'
   },
-  connectionTimeout: 20000,
-  greetingTimeout: 20000,
-  socketTimeout: 20000,
+  connectionTimeout: 30000,
+  greetingTimeout: 30000,
+  socketTimeout: 30000,
 });
 
 // Verification Log
