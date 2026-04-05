@@ -22,21 +22,12 @@ function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// --- EMAIL TRANSPORTER (DEFINITIVE RENDER FIX) ---
-// Using hardcoded Gmail IPv4 (192.178.211.109) to bypass Render DNS/IPv6 issues.
+// --- EMAIL TRANSPORTER (GMAIL SERVICE CONFIG) ---
 const transporter = nodemailer.createTransport({
-  host: '192.178.211.109',
-  port: 587,
-  secure: false, // STARTTLS
-  requireTLS: true,
-  pool: false, // Single connection for reliability
+  service: 'gmail',
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
-  },
-  tls: {
-    rejectUnauthorized: false,
-    servername: 'smtp.gmail.com' // Crucial for certificate validation
   },
   connectionTimeout: 60000,
   greetingTimeout: 60000,
@@ -46,9 +37,9 @@ const transporter = nodemailer.createTransport({
 // Verification Log
 transporter.verify((error) => {
   if (error) {
-    console.log('⚠️ Mail Server Error:', error.message);
+    console.error('⚠️ SMTP Verification Error:', error.message);
   } else {
-    console.log('✅ Mail Server Connected Successfully (IPv4 Direct)');
+    console.log('✅ SMTP Server Ready (using service: gmail)');
   }
 });
 
@@ -107,14 +98,21 @@ app.post('/api/auth/request-otp', async (req, res) => {
       `,
     };
 
-    await transporter.sendMail(mailOptions);
-    console.log(`\x1b[34m[SUCCESS]\x1b[0m OTP sent to ${normalizedEmail}`);
+    try {
+      await transporter.sendMail(mailOptions);
+      console.log(`\x1b[34m[SUCCESS]\x1b[0m OTP sent to ${normalizedEmail}`);
+    } catch (mailErr) {
+      console.error('\x1b[31m[CRITICAL MAIL ERROR]\x1b[0m', mailErr);
+      // Even if email fails, we log the OTP to the console so the admin can always see it
+      console.log(`\x1b[33m[DEBUG OTP]\x1b[0m Use this code if email fails: ${otp}`);
+      return res.status(500).json({ error: `Mail Dispatch Failed: ${mailErr.message}` });
+    }
 
     otpCache.set(normalizedEmail, { otp, expiresAt });
     res.json({ success: true });
   } catch (err) {
-    console.error('SMTP Error:', err.message);
-    res.status(500).json({ error: 'Failed to send OTP email.' });
+    console.error('General Auth Error:', err.message);
+    res.status(500).json({ error: 'Internal server error.' });
   }
 });
 
