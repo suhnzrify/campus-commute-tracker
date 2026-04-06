@@ -20,6 +20,11 @@ coverage
 .env.*
 !.env.example
 
+# Diagnostic / test scripts with credentials
+test-db.js
+test-smtp.js
+test-email.js
+
 # Local build and diagnostic artifacts
 build*.txt
 check_output.txt
@@ -36,3 +41,4 @@ out.json
 *.njsproj
 *.sln
 *.sw?
+.env

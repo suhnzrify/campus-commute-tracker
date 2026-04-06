@@ -4,18 +4,30 @@ import { getAllRoutes } from './routesStore.js';
 import { getBuses, getDrivers, getStudents } from './entitiesStore.js';
 import { hashPassword } from './auth.js';
 
-// Direct connection pool using native Node environment variables
-export const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: parseInt(process.env.DB_PORT || '5432'),
-  ssl: { rejectUnauthorized: false },
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-});
+// Use DATABASE_URL (connection string) for reliable Supabase pooler connections.
+// Falls back to individual env vars if DATABASE_URL is not set.
+const poolConfig = process.env.DATABASE_URL
+  ? {
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    }
+  : {
+      user: process.env.DB_USER,
+      host: process.env.DB_HOST,
+      database: process.env.DB_NAME,
+      password: process.env.DB_PASSWORD,
+      port: parseInt(process.env.DB_PORT || '5432'),
+      ssl: { rejectUnauthorized: false },
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    };
+
+console.log('🔌 [DB] Connecting via:', process.env.DATABASE_URL ? 'DATABASE_URL' : 'Individual env vars');
+export const pool = new Pool(poolConfig);
 
 // Helper for UI compatibility (snake_case to camelCase)
 const toCamel = (obj) => {
