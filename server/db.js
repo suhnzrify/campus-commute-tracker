@@ -1,3 +1,6 @@
+import dns from 'node:dns';
+dns.setDefaultResultOrder('ipv4first'); // MUST be before Pool creation
+
 import pkg from 'pg';
 const { Pool } = pkg;
 import { getAllRoutes } from './routesStore.js';
