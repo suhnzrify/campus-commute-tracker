@@ -8,29 +8,41 @@ import { getAllRoutes } from './routesStore.js';
 import { getBuses, getDrivers, getStudents } from './entitiesStore.js';
 import { hashPassword } from './auth.js';
 
-// Build pool config, forcing IPv4 for Supabase on Render
+// Build pool config, forcing IPv4 while preserving hostname for SSL SNI
 async function buildPoolConfig() {
   if (process.env.DATABASE_URL) {
     const url = new URL(process.env.DATABASE_URL);
     const originalHost = url.hostname;
+    const port = parseInt(url.port || '5432');
+    const database = url.pathname.replace('/', '') || 'postgres';
+    const user = decodeURIComponent(url.username);
+    const password = decodeURIComponent(url.password);
 
     // Resolve hostname to IPv4 explicitly
+    let resolvedHost = originalHost;
     try {
       const addresses = await dnsPromises.resolve4(originalHost);
       if (addresses.length > 0) {
-        console.log(`🔌 [DB] Resolved ${originalHost} → IPv4: ${addresses[0]}`);
-        url.hostname = addresses[0];
+        resolvedHost = addresses[0];
+        console.log(`🔌 [DB] Resolved ${originalHost} → IPv4: ${resolvedHost}`);
       }
     } catch (e) {
       console.warn('⚠️ [DB] IPv4 DNS resolve failed, using original hostname:', e.message);
     }
 
     return {
-      connectionString: url.toString(),
-      ssl: { rejectUnauthorized: false },
+      host: resolvedHost,
+      port,
+      database,
+      user,
+      password,
+      ssl: {
+        rejectUnauthorized: false,
+        servername: originalHost, // Keep original hostname for SNI routing
+      },
       max: 10,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
+      connectionTimeoutMillis: 15000,
     };
   }
   return {
@@ -42,7 +54,7 @@ async function buildPoolConfig() {
     ssl: { rejectUnauthorized: false },
     max: 10,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
+    connectionTimeoutMillis: 15000,
   };
 }
 
@@ -56,11 +68,9 @@ async function getPool() {
   return _pool;
 }
 
-// Proxy object so existing code like db.prepare(...) still works synchronously
-// Pool is initialized on first actual query
+// Proxy so existing code (pool.connect, pool.query, pool.end) still works
 export const pool = new Proxy({}, {
   get(target, prop) {
-    // For methods like pool.connect(), pool.query(), pool.end()
     return async (...args) => {
       const realPool = await getPool();
       return realPool[prop](...args);
