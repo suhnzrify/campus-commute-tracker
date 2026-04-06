@@ -1,5 +1,6 @@
 import dns from 'node:dns';
-dns.setDefaultResultOrder('ipv4first'); // MUST be before Pool creation
+import dnsPromises from 'node:dns/promises';
+dns.setDefaultResultOrder('ipv4first'); // Global fallback
 
 import pkg from 'pg';
 const { Pool } = pkg;
@@ -7,30 +8,65 @@ import { getAllRoutes } from './routesStore.js';
 import { getBuses, getDrivers, getStudents } from './entitiesStore.js';
 import { hashPassword } from './auth.js';
 
-// Use DATABASE_URL (connection string) for reliable Supabase pooler connections.
-// Falls back to individual env vars if DATABASE_URL is not set.
-const poolConfig = process.env.DATABASE_URL
-  ? {
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
-      max: 10,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
+// Build pool config, forcing IPv4 for Supabase on Render
+async function buildPoolConfig() {
+  if (process.env.DATABASE_URL) {
+    const url = new URL(process.env.DATABASE_URL);
+    const originalHost = url.hostname;
+
+    // Resolve hostname to IPv4 explicitly
+    try {
+      const addresses = await dnsPromises.resolve4(originalHost);
+      if (addresses.length > 0) {
+        console.log(`🔌 [DB] Resolved ${originalHost} → IPv4: ${addresses[0]}`);
+        url.hostname = addresses[0];
+      }
+    } catch (e) {
+      console.warn('⚠️ [DB] IPv4 DNS resolve failed, using original hostname:', e.message);
     }
-  : {
-      user: process.env.DB_USER,
-      host: process.env.DB_HOST,
-      database: process.env.DB_NAME,
-      password: process.env.DB_PASSWORD,
-      port: parseInt(process.env.DB_PORT || '5432'),
+
+    return {
+      connectionString: url.toString(),
       ssl: { rejectUnauthorized: false },
       max: 10,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
     };
+  }
+  return {
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    password: process.env.DB_PASSWORD,
+    port: parseInt(process.env.DB_PORT || '5432'),
+    ssl: { rejectUnauthorized: false },
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+  };
+}
 
-console.log('🔌 [DB] Connecting via:', process.env.DATABASE_URL ? 'DATABASE_URL' : 'Individual env vars');
-export const pool = new Pool(poolConfig);
+// Lazy-init pool (resolved at first use)
+let _pool = null;
+async function getPool() {
+  if (!_pool) {
+    const config = await buildPoolConfig();
+    _pool = new Pool(config);
+  }
+  return _pool;
+}
+
+// Proxy object so existing code like db.prepare(...) still works synchronously
+// Pool is initialized on first actual query
+export const pool = new Proxy({}, {
+  get(target, prop) {
+    // For methods like pool.connect(), pool.query(), pool.end()
+    return async (...args) => {
+      const realPool = await getPool();
+      return realPool[prop](...args);
+    };
+  }
+});
 
 // Helper for UI compatibility (snake_case to camelCase)
 const toCamel = (obj) => {
